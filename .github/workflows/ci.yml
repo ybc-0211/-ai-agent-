@@ -43,11 +43,24 @@ jobs:
       - name: Build
         run: npm run build
 
-      - name: Install Playwright Chromium
-        run: npx playwright install --with-deps chromium
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium firefox webkit
 
       - name: E2E tests
         run: npm run test:e2e
+        env:
+          E2E_ALL_BROWSERS: "1"
+
+      - name: Upload Playwright artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-artifacts
+          path: |
+            test-results/
+            playwright-report/
+          retention-days: 7
+          if-no-files-found: ignore
 
       - name: Format check (project files)
         run: npx oxfmt --check server shared src e2e README.md GETTING_STARTED.md docs/architecture.md playwright.config.ts

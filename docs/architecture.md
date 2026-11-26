@@ -147,13 +147,13 @@ assistant → respond 或最终文本
 
 工具定义位于 `agent.ts` 的 `TOOLS`。
 
-| 工具            | 参数                               | 作用                              |
-| --------------- | ---------------------------------- | --------------------------------- |
-| `list_tasks`    | 无                                 | 返回任务标题和完成状态，不返回 id |
-| `create_task`   | `title`                            | 创建任务                          |
-| `complete_task` | `name`，可选 `occurrence`          | 按名称完成                        |
-| `delete_task`   | `name`，可选 `occurrence`          | 按名称删除                        |
-| `respond`       | `claimed_action`，可选 `task_name` | 结构化收尾                        |
+| 工具            | 参数                      | 作用                              |
+| --------------- | ------------------------- | --------------------------------- |
+| `list_tasks`    | 无                        | 返回任务标题和完成状态，不返回 id |
+| `create_task`   | `title`                   | 创建任务                          |
+| `complete_task` | `name`，可选 `occurrence` | 按名称完成                        |
+| `delete_task`   | `name`，可选 `occurrence` | 按名称删除                        |
+| `respond`       | `claimed_action`          | 结构化收尾                        |
 
 ### 4.1 模型如何决定调用
 
@@ -236,8 +236,7 @@ tool_call
 
 ```json
 {
-  "claimed_action": "none | create | complete | delete | query",
-  "task_name": "可选"
+  "claimed_action": "none | create | complete | delete | query"
 }
 ```
 
@@ -255,7 +254,6 @@ tool_call
 
 - `respond` 本身不会修改任务；
 - `claimed_action` 是模型的结构化声明，服务端用本轮真实工具报告校验；
-- 当前成功校验按 `claimed_action` 匹配报告；`task_name` 字段保留但未参与成功判定；
 - 声明与结果不一致时，错误会作为 `role: "tool"` 消息回给模型，模型可以补调真实工具；
 - 用户可见的成功文本只由 `buildReply()` 根据工具报告生成。
 

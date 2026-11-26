@@ -1,10 +1,12 @@
 # Todo Agent
 
+[![CI](https://github.com/ybc-0211/-ai-agent-/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/ybc-0211/-ai-agent-/actions/workflows/ci.yml)
+
 > 基于 DeepSeek Function Calling 的中文待办清单智能体。
 
 ## 项目介绍
 
-Todo Agent 是一个本地运行的 Todo Agent。用户可以用中文与它对话，完成待办任务的创建、查询、完成和删除；任务会持久化到本地 JSON 文件，刷新页面或重启服务后仍可查询。
+Todo Agent 是一个可本地运行的中文 AI 待办清单智能体。用户可以用中文与它对话，完成待办任务的创建、查询、完成和删除；任务会持久化到本地 JSON 文件，刷新页面或重启服务后仍可查询。
 
 项目包含一个 React 聊天界面、一个 Express 服务端、一个任务 REST API，以及基于 DeepSeek Chat Completions 的 Agent 循环。
 
@@ -106,6 +108,40 @@ flowchart LR
 | [src/App.tsx](src/App.tsx)                   | 聊天界面、发送逻辑                              |
 
 更详细的架构说明见 [docs/architecture.md](docs/architecture.md)。
+
+## 项目结构
+
+```text
+todo-agent/
+├─ .github/workflows/ci.yml   GitHub Actions 工作流
+├─ docs/
+│  └─ architecture.md         架构与工具协议说明
+├─ public/                    静态 HTML/CSS/图标
+├─ server/
+│  ├─ index.ts                服务端入口与依赖装配
+│  ├─ app.ts                  Express、聊天接口、任务路由
+│  ├─ agent.ts                Agent 循环、工具、匹配、回复
+│  ├─ model.ts                DeepSeek 客户端与超时
+│  ├─ tasks.ts                任务 REST API
+│  ├─ task-store.ts           JSON 任务存储
+│  ├─ agent.test.ts           Agent 测试
+│  └─ app.test.ts             API/聊天测试
+├─ shared/chat.ts             前后端共享消息 schema
+├─ src/                       React 聊天前端
+├─ .env.example               环境变量占位示例
+├─ .gitignore
+├─ .oxfmtrc.json
+├─ .oxlintrc.json
+├─ package.json               脚本与依赖
+├─ package-lock.json
+├─ tsconfig.json              TypeScript 配置
+├─ AGENTS.md
+├─ SUBMIT.md
+├─ README.md
+└─ GETTING_STARTED.md
+```
+
+`data/`、`dist/`、`node_modules/`、`.env` 为运行时或本地文件，已被 `.gitignore` 忽略；`todo/` 不是本项目内容。
 
 ## Agent 工作流程
 
@@ -235,6 +271,20 @@ npm run fmt:check
 
 当前仓库中的 `AGENTS.md`、`SUBMIT.md` 等既有文档可能存在格式问题，`fmt:check` 可能失败。本次修改的三份文档已通过 oxfmt 检查。不要直接运行 `npm run fmt`，因为它可能修改 `SUBMIT.md`，而该文件按项目约定不应编辑。
 
+## 持续集成
+
+GitHub Actions 工作流位于 [.github/workflows/ci.yml](.github/workflows/ci.yml)，在 `push` 和 `pull_request` 时运行：
+
+- `npm ci`
+- `npm test`
+- `npm run typecheck`
+- `npm run lint`
+- `npm run build`
+- 项目文件格式检查
+- 全仓 `fmt:check`（非阻塞；`AGENTS.md`、`SUBMIT.md` 的既有格式基线不阻塞 CI）
+
+依赖安装使用 `setup-node` 的 npm 缓存。
+
 ## 安全机制
 
 - **API Key 不进入浏览器**：Key 只由 `server/model.ts` 在服务端读取。
@@ -257,15 +307,15 @@ npm run fmt:check
 - 名称匹配采用完全匹配优先 + 正向子串匹配；单条相似任务可能被直接选中。
 - DeepSeek 客户端有 60 秒超时；超时只返回通用服务错误，没有细分重试策略。
 - JSON 存储适用于单进程本地使用，不支持多进程并发写入。
-- 没有 CI、浏览器自动化测试、部署配置或 License 文件。
+- 没有浏览器自动化测试、部署配置或 License 文件。
 
 ## 后续规划
 
 - 补充界面截图或视频演示（有真实素材后再添加）。
-- 增加模型请求超时和更细的错误分类。
-- 补充缺失的边界测试，例如工具执行后模型仅返回自然语言、非法 `respond` 参数。
+- 增加更细的错误分类和超时重试策略。
+- 补充浏览器自动化测试和更多边界测试。
 - 在明确需求后评估截止日期、优先级、子任务等可选扩展。
-- 评估 CI 和多进程存储方案；这些是后续工程化事项，不是当前已实现能力。
+- 评估多进程存储和部署方案；这些是后续工程化事项，不是当前已实现能力。
 
 ## 相关文档
 

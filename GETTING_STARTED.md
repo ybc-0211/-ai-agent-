@@ -135,6 +135,8 @@ npm run fmt:check
 - 不要直接运行 `npm run fmt`，因为它可能修改 `SUBMIT.md`；按照 `AGENTS.md`，该文件不应编辑。
 - 代码质量门禁建议使用 `npm test`、`npm run typecheck`、`npm run lint`、`npm run build`。
 
+GitHub Actions 配置在 `.github/workflows/ci.yml`，在 `push` 和 `pull_request` 时运行上述检查及项目文件格式检查；全仓 `fmt:check` 因上述既有文档基线作为非阻塞步骤运行。
+
 ## 7. 常见错误处理
 
 | 现象                                        | 原因                                | 处理                                                 |

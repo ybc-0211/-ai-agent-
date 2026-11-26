@@ -195,7 +195,7 @@ function modelClient(): OpenAI {
   return client;
 }
 
-async function deepSeekModelCall(
+export async function deepSeekModelCall(
   messages: ChatCompletionMessageParam[],
 ): Promise<ChatCompletionMessage> {
   const completion = await modelClient().chat.completions.create({
@@ -704,6 +704,7 @@ function modelErrorReply(error: unknown): string {
     console.error("未配置 DEEPSEEK_API_KEY，未调用模型。");
     return error.message;
   }
-  console.error("调用模型失败", error);
+  const detail = error instanceof Error ? `${error.name}: ${error.message}` : "unknown error";
+  console.error("调用模型失败", detail);
   return "抱歉，模型服务暂时不可用，请稍后再试。";
 }

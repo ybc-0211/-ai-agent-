@@ -10,6 +10,8 @@
     "typecheck": "tsc --noEmit",
     "test": "node --test server/*.test.ts",
     "test:e2e": "playwright test",
+    "test:smoke": "node --env-file-if-exists=.env --test smoke/*.test.ts",
+    "demo:capture": "npm run build && node e2e/capture-demo.ts",
     "fmt": "oxfmt --write .",
     "fmt:check": "oxfmt --check .",
     "lint": "oxlint .",
@@ -32,6 +34,7 @@
     "esbuild": "^0.28.2",
     "oxfmt": "^0.80.0",
     "oxlint": "^1.95.0",
+    "playwright": "^1.65.1",
     "typescript": "^7.0.2"
   },
   "engines": {

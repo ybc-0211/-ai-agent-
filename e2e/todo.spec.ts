@@ -104,7 +104,7 @@ test("E2E 模型超时/异常：返回安全兜底，不影响任务数据", asy
   await sendMessage(page, "模拟模型错误");
 
   await expect(page.locator(".message.assistant").last()).toContainText(
-    "抱歉，模型服务暂时不可用，请稍后再试。",
+    "模型请求超时，请稍后再试。",
   );
   expect(await listTasks(request)).toHaveLength(0);
 });

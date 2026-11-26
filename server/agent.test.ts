@@ -419,6 +419,34 @@ test("模型调用失败：返回友好提示而不是抛出 500", async (t) => 
   );
 });
 
+test("模型错误分类：超时、401、429、5xx 返回明确提示", async (t) => {
+  t.mock.method(console, "error", () => {});
+  const tasks = await createStore(t);
+
+  async function replyFor(error: unknown): Promise<string> {
+    const callModel: ModelCall = async () => {
+      throw error;
+    };
+    return createTodoAgent({ tasks, callModel })([{ role: "user", content: "你好" }]);
+  }
+
+  const timeout = new Error("timed out");
+  timeout.name = "APIConnectionTimeoutError";
+  assert.equal(await replyFor(timeout), "模型请求超时，请稍后再试。");
+  assert.equal(
+    await replyFor(Object.assign(new Error("unauthorized"), { status: 401 })),
+    "模型鉴权失败，请检查 DEEPSEEK_API_KEY 配置。",
+  );
+  assert.equal(
+    await replyFor(Object.assign(new Error("rate limited"), { status: 429 })),
+    "模型请求过于频繁，请稍后再试。",
+  );
+  assert.equal(
+    await replyFor(Object.assign(new Error("server error"), { status: 503 })),
+    "模型服务暂时异常，请稍后再试。",
+  );
+});
+
 test("多轮工具调用：list -> complete，工具消息按顺序回填", async (t) => {
   const tasks = await createStore(t);
   const milk = tasks.create("买牛奶");

@@ -197,6 +197,7 @@ function modelClient(): OpenAI {
 
 export async function deepSeekModelCall(
   messages: ChatCompletionMessageParam[],
+  options: { maxOutputTokens?: number } = {},
 ): Promise<ChatCompletionMessage> {
   const completion = await modelClient().chat.completions.create({
     model,
@@ -204,6 +205,7 @@ export async function deepSeekModelCall(
     tools: TOOLS,
     tool_choice: "auto",
     reasoning_effort: "none",
+    max_tokens: options.maxOutputTokens ?? 1024,
   });
   const message = completion.choices[0]?.message;
   if (!message) throw new Error("模型没有返回任何消息。");
@@ -699,12 +701,33 @@ function failJson(payload: Record<string, unknown>): string {
   return JSON.stringify({ ok: false, ...payload });
 }
 
+function errorStatus(error: unknown): number | undefined {
+  if (typeof error !== "object" || error === null || !("status" in error)) return undefined;
+  const status = (error as { status?: unknown }).status;
+  return typeof status === "number" ? status : undefined;
+}
+
 function modelErrorReply(error: unknown): string {
   if (error instanceof Error && error.message.includes("DEEPSEEK_API_KEY")) {
     console.error("未配置 DEEPSEEK_API_KEY，未调用模型。");
     return error.message;
   }
-  const detail = error instanceof Error ? `${error.name}: ${error.message}` : "unknown error";
-  console.error("调用模型失败", detail);
+
+  const status = errorStatus(error);
+  const name = error instanceof Error ? error.name : "UnknownError";
+  console.error("调用模型失败", `${name}${status ? ` status=${status}` : ""}`);
+
+  if (name === "APIConnectionTimeoutError" || name.includes("Timeout")) {
+    return "模型请求超时，请稍后再试。";
+  }
+  if (status === 401) {
+    return "模型鉴权失败，请检查 DEEPSEEK_API_KEY 配置。";
+  }
+  if (status === 429) {
+    return "模型请求过于频繁，请稍后再试。";
+  }
+  if (status !== undefined && status >= 500) {
+    return "模型服务暂时异常，请稍后再试。";
+  }
   return "抱歉，模型服务暂时不可用，请稍后再试。";
 }

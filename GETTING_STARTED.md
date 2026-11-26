@@ -115,13 +115,22 @@ npm test
 npm run typecheck
 npm run lint
 npm run build
+npm run test:e2e
+```
+
+E2E 首次运行前安装 Playwright Chromium：
+
+```bash
+npx playwright install chromium
 ```
 
 当前测试情况：
 
 - `server/agent.test.ts`：40 个 Mock Agent 测试；
 - `server/app.test.ts`：4 个任务/聊天 API 测试；
-- 共 44 个测试，均不调用真实 DeepSeek API。
+- `e2e/todo.spec.ts`：8 个 Playwright E2E 测试；
+- 共 52 个测试（44 个单元/API + 8 个 E2E），均不调用真实 DeepSeek API。
+- E2E 使用 `e2e/server.ts` 和 `e2e/mock-model.ts`，覆盖真实浏览器到任务存储的完整链路。
 
 格式检查：
 
@@ -135,7 +144,7 @@ npm run fmt:check
 - 不要直接运行 `npm run fmt`，因为它可能修改 `SUBMIT.md`；按照 `AGENTS.md`，该文件不应编辑。
 - 代码质量门禁建议使用 `npm test`、`npm run typecheck`、`npm run lint`、`npm run build`。
 
-GitHub Actions 配置在 `.github/workflows/ci.yml`，在 `push` 和 `pull_request` 时运行上述检查及项目文件格式检查；全仓 `fmt:check` 因上述既有文档基线作为非阻塞步骤运行。
+GitHub Actions 配置在 `.github/workflows/ci.yml`，在 `push` 和 `pull_request` 时运行上述检查、安装 Playwright Chromium 并执行 E2E；全仓 `fmt:check` 因上述既有文档基线作为非阻塞步骤运行。
 
 ## 7. 常见错误处理
 
@@ -145,6 +154,7 @@ GitHub Actions 配置在 `.github/workflows/ci.yml`，在 `push` 和 `pull_reque
 | 聊天回复“请在 .env 中设置 DEEPSEEK_API_KEY” | 未配置 Key                          | 创建 `.env` 并填写 Key，重启服务                     |
 | 聊天回复“模型服务暂时不可用”                | Key 无效、网络、超时或模型服务异常  | 检查 Key、网络和 DeepSeek 服务状态                   |
 | 请求长时间无响应                            | 模型客户端 60 秒超时                | 检查网络或模型服务，稍后重试                         |
+| Playwright 报找不到浏览器                   | 未安装 Chromium                     | 执行 `npx playwright install chromium`               |
 | 3000 端口被占用                             | 端口冲突                            | 设置 `PORT` 后重启                                   |
 | 页面能打开但 `/assets/chat.js` 404          | 前端未构建                          | 执行 `npm run build`                                 |
 | 修改前端后页面没有变化                      | 只重启了服务端                      | 重新执行 `npm run build` 并刷新                      |

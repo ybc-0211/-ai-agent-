@@ -69,7 +69,7 @@ Todo Agent 是一个可本地运行的中文 AI 待办清单智能体。用户�
 | AI            | DeepSeek Chat Completions，默认模型 `deepseek-flash` |
 | AI SDK        | `openai`（OpenAI 兼容接口）                          |
 | 参数校验      | zod                                                  |
-| 测试          | Node.js 内置 `node:test`                             |
+| 测试          | Node.js `node:test` + Playwright E2E                 |
 | 构建          | esbuild                                              |
 | 类型检查      | TypeScript `tsc --noEmit`                            |
 | Lint / 格式化 | oxlint / oxfmt                                       |
@@ -116,6 +116,11 @@ todo-agent/
 ├─ .github/workflows/ci.yml   GitHub Actions 工作流
 ├─ docs/
 │  └─ architecture.md         架构与工具协议说明
+├─ e2e/
+│  ├─ mock-model.ts           可控 Mock 模型
+│  ├─ server.ts               E2E 专用服务
+│  └─ todo.spec.ts            Playwright 浏览器测试
+├─ playwright.config.ts       Playwright 配置
 ├─ public/                    静态 HTML/CSS/图标
 ├─ server/
 │  ├─ index.ts                服务端入口与依赖装配
@@ -253,13 +258,23 @@ npm test
 npm run typecheck
 npm run lint
 npm run build
+npm run test:e2e
 ```
 
 当前测试规模：
 
-- 40 个 Agent 测试；
+- 40 个 Agent 单元测试；
 - 4 个任务/聊天 API 测试；
-- 共 44 个测试，全部通过。
+- 8 个 Playwright E2E 测试；
+- 共 52 个测试（44 个单元/API + 8 个 E2E），全部通过。
+
+E2E 首次运行前需要安装 Chromium：
+
+```bash
+npx playwright install chromium
+```
+
+E2E 使用 `e2e/server.ts`、`e2e/mock-model.ts` 和临时任务数据，不调用真实 DeepSeek API，不产生模型费用。测试覆盖创建、查询、完成、删除、不存在任务、同名歧义、模型异常/超时和无效输入。
 
 测试使用 Mock 模型和临时任务目录，不会消耗真实 DeepSeek 额度。
 
@@ -280,6 +295,7 @@ GitHub Actions 工作流位于 [.github/workflows/ci.yml](.github/workflows/ci.y
 - `npm run typecheck`
 - `npm run lint`
 - `npm run build`
+- 安装 Playwright Chromium 并运行 `npm run test:e2e`
 - 项目文件格式检查
 - 全仓 `fmt:check`（非阻塞；`AGENTS.md`、`SUBMIT.md` 的既有格式基线不阻塞 CI）
 
@@ -307,13 +323,14 @@ GitHub Actions 工作流位于 [.github/workflows/ci.yml](.github/workflows/ci.y
 - 名称匹配采用完全匹配优先 + 正向子串匹配；单条相似任务可能被直接选中。
 - DeepSeek 客户端有 60 秒超时；超时只返回通用服务错误，没有细分重试策略。
 - JSON 存储适用于单进程本地使用，不支持多进程并发写入。
-- 没有浏览器自动化测试、部署配置或 License 文件。
+- E2E 使用 Mock 模型；真实 DeepSeek 链路仍通过手工六轮验收，不纳入自动测试。
+- 没有真实浏览器界面截图、视频、部署配置或 License 文件。
 
 ## 后续规划
 
 - 补充界面截图或视频演示（有真实素材后再添加）。
 - 增加更细的错误分类和超时重试策略。
-- 补充浏览器自动化测试和更多边界测试。
+- 扩展 E2E 场景，覆盖纯聊天和多轮歧义确认。
 - 在明确需求后评估截止日期、优先级、子任务等可选扩展。
 - 评估多进程存储和部署方案；这些是后续工程化事项，不是当前已实现能力。
 

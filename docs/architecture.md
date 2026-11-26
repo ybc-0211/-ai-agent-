@@ -406,3 +406,4 @@ if (toolCalls + calls.length > MAX_TOOL_CALLS) {
 | 前后端协议    | `shared/chat.ts`                                              |
 | Agent 测试    | `server/agent.test.ts`（40 个）                               |
 | API 测试      | `server/app.test.ts`（4 个）                                  |
+| E2E 测试      | `e2e/todo.spec.ts`（8 个，Playwright + Mock 模型）            |

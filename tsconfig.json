@@ -14,5 +14,5 @@
     "erasableSyntaxOnly": true,
     "skipLibCheck": true
   },
-  "include": ["src", "server", "shared"]
+  "include": ["src", "server", "shared", "e2e", "playwright.config.ts"]
 }

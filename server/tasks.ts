@@ -2,7 +2,7 @@ import { Router } from "express";
 import { z } from "zod";
 import type { TaskStore } from "./task-store.ts";
 
-const createTaskSchema = z.strictObject({ title: z.string().trim().min(1).max(200) });
+export const createTaskSchema = z.strictObject({ title: z.string().trim().min(1).max(200) });
 const updateTaskSchema = createTaskSchema
   .partial()
   .extend({ done: z.boolean().optional() })

@@ -120,10 +120,6 @@ const TOOLS: ChatCompletionTool[] = [
             enum: ["none", "create", "complete", "delete", "query"],
             description: "本轮实际完成的操作；普通聊天用 none",
           },
-          task_name: {
-            type: "string",
-            description: "可选；本轮操作的目标任务名称",
-          },
         },
         required: ["claimed_action"],
         additionalProperties: false,
@@ -139,7 +135,6 @@ const taskNameSchema = z.strictObject({
 
 const respondSchema = z.strictObject({
   claimed_action: z.enum(["none", "create", "complete", "delete", "query"]),
-  task_name: z.string().trim().min(1).max(200).optional(),
 });
 
 const CHAT_REPLY = "我在。你可以让我创建、查询、完成或删除待办任务。";
@@ -165,7 +160,6 @@ type FailureCode =
   | "not_found"
   | "ambiguous"
   | "store_error"
-  | "not_executed"
   | "unknown_tool";
 
 interface ToolReport {
@@ -659,8 +653,6 @@ function buildReply(reports: ToolReport[], tasks: TaskStore, note?: string): str
       report.code === "invalid_json"
     ) {
       lines.push(`未能完成操作：${report.error ?? "参数不合法"}`);
-    } else if (report.code === "not_executed") {
-      lines.push(`未执行操作：${report.error ?? "没有成功调用对应工具。"}`);
     } else {
       lines.push(`操作失败：${report.error ?? "未知错误"}`);
     }

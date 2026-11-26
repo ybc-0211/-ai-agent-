@@ -48,15 +48,8 @@ interface ScriptedModel {
 
 function respondMessage(
   claimed: "none" | "create" | "complete" | "delete" | "query",
-  taskName?: string,
 ): ChatCompletionMessage {
-  return assistantMessage(null, [
-    toolCall(
-      "respond",
-      { claimed_action: claimed, ...(taskName ? { task_name: taskName } : {}) },
-      "respond_1",
-    ),
-  ]);
+  return assistantMessage(null, [toolCall("respond", { claimed_action: claimed }, "respond_1")]);
 }
 
 function scriptModel(responses: ChatCompletionMessage[]): ScriptedModel {
@@ -98,7 +91,7 @@ test("创建任务：收到真实创建结果并生成确定性确认", async (t
     tasks,
     [
       assistantMessage(null, [toolCall("create_task", { title: " 买牛奶 " })]),
-      respondMessage("create", "买牛奶"),
+      respondMessage("create"),
     ],
     "帮我记一下买牛奶",
   );
@@ -148,7 +141,7 @@ test("完成任务：按名称匹配并确认状态确实变更", async (t) => {
     [
       assistantMessage(null, [toolCall("list_tasks", {})]),
       assistantMessage(null, [toolCall("complete_task", { name: "牛奶" }, "call_2")]),
-      respondMessage("complete", "买牛奶"),
+      respondMessage("complete"),
     ],
     "牛奶买好了",
   );
@@ -167,7 +160,7 @@ test("删除任务：按名称匹配并确认真实删除", async (t) => {
     [
       assistantMessage(null, [toolCall("list_tasks", {})]),
       assistantMessage(null, [toolCall("delete_task", { name: "取快递" }, "call_2")]),
-      respondMessage("delete", "取快递"),
+      respondMessage("delete"),
     ],
     "取快递这条删掉吧",
   );
@@ -275,7 +268,7 @@ test("同名歧义：用户明确第 2 条后按真实任务执行", async (t) =
       assistantMessage(null, [
         toolCall("complete_task", { name: "买牛奶", occurrence: 2 }, "call_2"),
       ]),
-      respondMessage("complete", "买牛奶"),
+      respondMessage("complete"),
     ],
     "把第二条买牛奶标记完成",
   );
@@ -437,7 +430,7 @@ test("多轮工具调用：list -> complete，工具消息按顺序回填", asyn
     if (seen.length === 2) {
       return assistantMessage(null, [toolCall("complete_task", { name: "买牛奶" }, "call_2")]);
     }
-    return respondMessage("complete", "买牛奶");
+    return respondMessage("complete");
   };
 
   const agent = createTodoAgent({ tasks, callModel });
@@ -460,7 +453,7 @@ test("假成功防护：只查询却声称删除，不返回成功确认", async
     tasks,
     [
       assistantMessage(null, [toolCall("list_tasks", {})]),
-      respondMessage("delete", "取快递"),
+      respondMessage("delete"),
       respondMessage("query"),
     ],
     "取快递这条删掉吧",
@@ -481,7 +474,7 @@ test("假成功防护：只查询后任务请求 respond none 会被要求补调
       assistantMessage(null, [toolCall("list_tasks", {})]),
       respondMessage("none"),
       assistantMessage(null, [toolCall("delete_task", { name: "取快递" }, "call_2")]),
-      respondMessage("delete", "取快递"),
+      respondMessage("delete"),
     ],
     "取快递这条删掉吧",
   );
@@ -501,7 +494,7 @@ test("假成功防护：工具失败却声称成功，不返回成功确认", as
     [
       assistantMessage(null, [toolCall("list_tasks", {})]),
       assistantMessage(null, [toolCall("complete_task", { name: "不存在" }, "call_2")]),
-      respondMessage("complete", "买牛奶"),
+      respondMessage("complete"),
       respondMessage("none"),
     ],
     "完成买牛奶",
@@ -529,7 +522,7 @@ test("无工具调用：respond 声称创建/完成/删除但无对应结果时�
 
     const { answer, calls } = await replyWith(
       tasks,
-      [respondMessage(action, "买牛奶"), respondMessage("query")],
+      [respondMessage(action), respondMessage("query")],
       "操作买牛奶",
     );
 
@@ -558,7 +551,7 @@ test("无工具调用：任务请求用 respond none 结束会被要求补调工
       respondMessage("none"),
       assistantMessage(null, [toolCall("list_tasks", {}, "call_1")]),
       assistantMessage(null, [toolCall("create_task", { title: "买牛奶" }, "call_2")]),
-      respondMessage("create", "买牛奶"),
+      respondMessage("create"),
     ],
     "帮我记一下买牛奶",
   );
@@ -871,7 +864,7 @@ test("聊天接口：使用 agent 工厂完成一次创建任务", async (t) => 
   const tasks = await createStore(t);
   const { callModel } = scriptModel([
     assistantMessage(null, [toolCall("create_task", { title: "买牛奶" })]),
-    respondMessage("create", "买牛奶"),
+    respondMessage("create"),
   ]);
   const app = createApp({ reply: createTodoAgent({ tasks, callModel }), tasks });
 

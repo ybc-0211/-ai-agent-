@@ -404,7 +404,7 @@ if (toolCalls + calls.length > MAX_TOOL_CALLS) {
 | 任务存储       | `server/task-store.ts`                                        |
 | 任务 REST API  | `server/tasks.ts`                                             |
 | 前后端协议     | `shared/chat.ts`                                              |
-| Agent 测试     | `server/agent.test.ts`（40 个）                               |
+| Agent 测试     | `server/agent.test.ts`（41 个）                               |
 | API 测试       | `server/app.test.ts`（4 个）                                  |
 | E2E 场景       | `e2e/todo.spec.ts`（8 个场景 × 3 浏览器 = 24 次执行）         |
-| 真实 API Smoke | `smoke/deepseek.test.ts`（1 个，手动 workflow_dispatch）      |
+| 真实 API Smoke | `smoke/deepseek.test.ts`（1 个；无 Key 时 skip，手动运行）    |

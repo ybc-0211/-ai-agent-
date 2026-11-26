@@ -296,11 +296,11 @@ npm run test:e2e
 
 当前测试规模：
 
-- 40 个 Agent 单元测试；
+- 41 个 Agent 单元测试；
 - 4 个任务/聊天 API 测试；
 - 8 个 Playwright E2E 场景；
 - CI 在 Chromium、Firefox、WebKit 上各跑一遍，共 24 次 E2E 执行；
-- 共 68 次自动化执行（44 个单元/API + 24 个 E2E 执行），全部通过。
+- 共 69 次自动化执行（45 个单元/API + 24 个 E2E 执行），全部通过。
 
 E2E 首次运行前需要安装浏览器：
 
@@ -328,14 +328,17 @@ E2E 使用 `e2e/server.ts`、`e2e/mock-model.ts` 和临时任务数据，不调�
 
 ### 真实 DeepSeek Smoke
 
-真实 API Smoke 默认不执行，不会进入 `npm test` 或普通 CI。它需要 `DEEPSEEK_API_KEY`，最多发起 2 次模型请求，验证模型确实调用工具并创建任务：
+真实 API Smoke 默认不执行，不会进入 `npm test` 或普通 CI。它需要 `DEEPSEEK_API_KEY`，最多发起 2 次模型请求、限制输出 256 tokens，并验证模型确实调用工具并创建任务：
 
 ```bash
 # 本地：先在 .env 配置 DEEPSEEK_API_KEY
 npm run test:smoke
 ```
 
-GitHub Actions 使用手动 `workflow_dispatch` 工作流 `DeepSeek Smoke`，读取 `Secrets.DEEPSEEK_API_KEY`，不会在 `pull_request` 自动运行。
+- 未配置 Key 时测试会明确标记 `skipped`，不会伪装成通过。
+- 客户端超时 60 秒；401 鉴权失败、429 限流、5xx 服务端异常会输出明确错误类型。
+- 不打印 Key、完整请求头或响应体。
+- GitHub Actions 使用手动 `workflow_dispatch` 工作流 `DeepSeek Smoke`，读取 `Secrets.DEEPSEEK_API_KEY`，不会在 `pull_request` 自动运行。
 
 格式检查：
 

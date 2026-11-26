@@ -126,11 +126,11 @@ npx playwright install chromium firefox webkit
 
 当前测试情况：
 
-- `server/agent.test.ts`：40 个 Mock Agent 测试；
+- `server/agent.test.ts`：41 个 Mock Agent 测试；
 - `server/app.test.ts`：4 个任务/聊天 API 测试；
 - `e2e/todo.spec.ts`：8 个 Playwright E2E 场景；
 - CI 在 Chromium、Firefox、WebKit 上各跑一遍，共 24 次 E2E 执行；
-- 共 68 次自动化执行（44 个单元/API + 24 个 E2E 执行），均不调用真实 DeepSeek API；
+- 共 69 次自动化执行（45 个单元/API + 24 个 E2E 执行），均不调用真实 DeepSeek API；
 - E2E 使用 `e2e/server.ts` 和 `e2e/mock-model.ts`，覆盖真实浏览器到任务存储的完整链路。
 
 默认运行 Chromium：
@@ -162,7 +162,7 @@ Playwright 在失败时保留 trace、截图和视频；CI 通过 `actions/uploa
 npm run test:smoke
 ```
 
-该 Smoke 最多发起 2 次模型请求，验证真实模型能够完成一次自然语言创建任务并实际落库，不会打印 Key 或请求头。
+该 Smoke 最多发起 2 次模型请求、限制输出 256 tokens，验证真实模型能够完成一次自然语言创建任务并实际落库，不会打印 Key 或请求头。客户端超时 60 秒；401、429、5xx 会输出明确的失败类型。未配置 Key 时测试会明确标记 skipped，不会伪装成通过。
 
 CI 手动启用：
 

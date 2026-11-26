@@ -16,6 +16,12 @@ export type { ChatMessage } from "../shared/chat.ts";
 const MAX_STEPS = 6;
 const MAX_TOOL_CALLS = 12;
 
+const TASK_REQUEST_PATTERN =
+  /创建|新建|添加|记一下|记一条|记下|提醒我|完成|做完|标记|删除|删掉|移除|查询|查看|列出|清单|待办|任务|买好了|办好了|搞定了|第\s*[0-9一二三四五六七八九十]+\s*(?:条|个|项|件)/;
+
+const TASK_MUTATION_PATTERN =
+  /创建|新建|添加|记一下|记一条|记下|提醒我|完成|做完|标记|删除|删掉|移除|买好了|办好了|搞定了|第\s*[0-9一二三四五六七八九十]+\s*(?:条|个|项|件)/;
+
 const SYSTEM_PROMPT = `你是「小明」，一个中文待办清单智能体。你可以通过工具读取和修改用户的待办清单。
 
 工作规则：
@@ -237,6 +243,13 @@ export function createTodoAgent({ tasks, callModel = deepSeekModelCall }: TodoAg
       if (calls.length === 0) {
         if (reports.length > 0) return buildReply(reports, tasks);
         if (step + 1 >= MAX_STEPS) {
+          if (isLikelyTaskRequest(toolState.lastUserMessage, tasks)) {
+            return buildReply(
+              [{ action: "list", ok: true }],
+              tasks,
+              "我没能生成有效的结构化结果。请再试一次。",
+            );
+          }
           return "抱歉，我没能生成有效的结构化结果。请再试一次。";
         }
         history.push({ role: "assistant", content: message.content });
@@ -255,7 +268,7 @@ export function createTodoAgent({ tasks, callModel = deepSeekModelCall }: TodoAg
       history.push({ role: "assistant", content: message.content, tool_calls: calls });
       for (const call of calls) {
         if (call.type === "function" && call.function.name === "respond") {
-          const result = handleRespond(call, reports, tasks);
+          const result = handleRespond(call, reports, tasks, toolState.lastUserMessage);
           if ("final" in result) return result.final;
           history.push({ role: "tool", tool_call_id: call.id, content: result.content });
           continue;
@@ -267,7 +280,17 @@ export function createTodoAgent({ tasks, callModel = deepSeekModelCall }: TodoAg
       }
     }
 
-    return buildReply(reports, tasks, "已达到单轮步骤上限，以上是已经执行的操作。");
+    if (reports.length > 0) {
+      return buildReply(reports, tasks, "已达到单轮步骤上限，以上是已经执行的操作。");
+    }
+    if (isLikelyTaskRequest(toolState.lastUserMessage, tasks)) {
+      return buildReply(
+        [{ action: "list", ok: true }],
+        tasks,
+        "已达到单轮步骤上限，任务操作未能完成。",
+      );
+    }
+    return "抱歉，我没能生成有效的结构化结果。请再试一次。";
   };
 }
 
@@ -277,6 +300,7 @@ function handleRespond(
   call: ChatCompletionMessageToolCall,
   reports: ToolReport[],
   tasks: TaskStore,
+  lastUserMessage: string,
 ): RespondResult {
   if (call.type !== "function") {
     return { content: failJson({ code: "invalid_response", error: "不支持的调用类型。" }) };
@@ -300,7 +324,19 @@ function handleRespond(
 
   const action = parsed.data.claimed_action;
   if (action === "none") {
-    return { final: reports.length > 0 ? buildReply(reports, tasks) : CHAT_REPLY };
+    if (reports.length > 0) {
+      const hasMutationAttempt = reports.some(
+        (report) => report.action !== "list" && report.action !== "unknown",
+      );
+      if (!hasMutationAttempt && TASK_MUTATION_PATTERN.test(lastUserMessage)) {
+        return { content: taskRequiredContent() };
+      }
+      return { final: buildReply(reports, tasks) };
+    }
+    if (isLikelyTaskRequest(lastUserMessage, tasks)) {
+      return { content: taskRequiredContent() };
+    }
+    return { final: CHAT_REPLY };
   }
   if (action === "query") {
     return {
@@ -478,6 +514,27 @@ function findTaskCandidates(tasks: TaskView[], name: string): TaskView[] {
 
 function normalizeName(value: string): string {
   return value.trim().replace(/\s+/g, " ").toLocaleLowerCase("zh-CN");
+}
+
+function isLikelyTaskRequest(message: string, tasks: TaskStore): boolean {
+  if (TASK_REQUEST_PATTERN.test(message)) return true;
+  try {
+    const normalizedMessage = normalizeName(message);
+    return tasks.list().some((task) => {
+      const title = normalizeName(task.title);
+      return title.length >= 2 && normalizedMessage.includes(title);
+    });
+  } catch {
+    return false;
+  }
+}
+
+function taskRequiredContent(): string {
+  return failJson({
+    code: "task_required",
+    error:
+      "这看起来是待办请求。请先调用 list_tasks，并使用对应任务工具完成操作；不要直接用 respond none 结束。",
+  });
 }
 
 const CHINESE_ORDINALS: Record<string, number> = {

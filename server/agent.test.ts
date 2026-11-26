@@ -461,7 +461,7 @@ test("假成功防护：只查询却声称删除，不返回成功确认", async
     [
       assistantMessage(null, [toolCall("list_tasks", {})]),
       respondMessage("delete", "取快递"),
-      respondMessage("none"),
+      respondMessage("query"),
     ],
     "取快递这条删掉吧",
   );
@@ -469,6 +469,27 @@ test("假成功防护：只查询却声称删除，不返回成功确认", async
   assert.doesNotMatch(answer, /已删除/);
   assert.match(answer, /- \[ \] 取快递/);
   assert.equal(tasks.list().length, 1);
+});
+
+test("假成功防护：只查询后任务请求 respond none 会被要求补调工具", async (t) => {
+  const tasks = await createStore(t);
+  tasks.create("取快递");
+
+  const { answer, calls } = await replyWith(
+    tasks,
+    [
+      assistantMessage(null, [toolCall("list_tasks", {})]),
+      respondMessage("none"),
+      assistantMessage(null, [toolCall("delete_task", { name: "取快递" }, "call_2")]),
+      respondMessage("delete", "取快递"),
+    ],
+    "取快递这条删掉吧",
+  );
+
+  assert.match(answer, /已删除任务「取快递」/);
+  assert.equal(tasks.list().length, 0);
+  const firstError = toolContents(calls[2] ?? []).at(-1);
+  assert.equal(firstError?.code, "task_required");
 });
 
 test("假成功防护：工具失败却声称成功，不返回成功确认", async (t) => {
@@ -508,7 +529,7 @@ test("无工具调用：respond 声称创建/完成/删除但无对应结果时�
 
     const { answer, calls } = await replyWith(
       tasks,
-      [respondMessage(action, "买牛奶"), respondMessage("none")],
+      [respondMessage(action, "买牛奶"), respondMessage("query")],
       "操作买牛奶",
     );
 
@@ -527,6 +548,64 @@ test("无工具调用：respond 声称查询时返回服务端真实清单", asy
   const { answer } = await replyWith(tasks, [respondMessage("query")], "我有哪些任务");
 
   assert.match(answer, /- \[ \] 买牛奶/);
+});
+
+test("无工具调用：任务请求用 respond none 结束会被要求补调工具", async (t) => {
+  const tasks = await createStore(t);
+  const { answer, calls } = await replyWith(
+    tasks,
+    [
+      respondMessage("none"),
+      assistantMessage(null, [toolCall("list_tasks", {}, "call_1")]),
+      assistantMessage(null, [toolCall("create_task", { title: "买牛奶" }, "call_2")]),
+      respondMessage("create", "买牛奶"),
+    ],
+    "帮我记一下买牛奶",
+  );
+
+  assert.match(answer, /已创建任务「买牛奶」/);
+  assert.equal(tasks.list().length, 1);
+  assert.equal(calls.length, 4);
+  const firstError = toolContents(calls[1] ?? []).at(-1);
+  assert.equal(firstError?.code, "task_required");
+});
+
+test("无工具调用：普通聊天 respond none 返回固定安全文案", async (t) => {
+  const tasks = await createStore(t);
+  const { answer, calls } = await replyWith(tasks, [respondMessage("none")], "你好");
+
+  assert.equal(answer, "我在。你可以让我创建、查询、完成或删除待办任务。");
+  assert.equal(calls.length, 1);
+});
+
+test("假成功防护：已有工具报告时，模型纯自然语言不会成为成功回复", async (t) => {
+  const tasks = await createStore(t);
+  tasks.create("取快递");
+
+  const { answer, calls } = await replyWith(
+    tasks,
+    [assistantMessage(null, [toolCall("list_tasks", {})]), assistantMessage("已删除「取快递」。")],
+    "取快递这条删掉吧",
+  );
+
+  assert.doesNotMatch(answer, /已删除/);
+  assert.match(answer, /- \[ \] 取快递/);
+  assert.equal(calls.length, 2);
+  assert.equal(tasks.list().length, 1);
+});
+
+test("respond 参数非法时返回结构化错误并允许重试", async (t) => {
+  const tasks = await createStore(t);
+  const { answer, calls } = await replyWith(
+    tasks,
+    [assistantMessage(null, [rawToolCall("respond", "{bad json")]), respondMessage("none")],
+    "你好",
+  );
+
+  assert.equal(answer, "我在。你可以让我创建、查询、完成或删除待办任务。");
+  assert.equal(calls.length, 2);
+  const firstError = toolContents(calls[1] ?? []).at(-1);
+  assert.equal(firstError?.code, "invalid_response");
 });
 
 test("多工具部分成功：分别输出真实成功与失败", async (t) => {

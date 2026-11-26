@@ -58,6 +58,32 @@ Todo Agent 是一个可本地运行的中文 AI 待办清单智能体。用户�
 
 复现方式：启动服务后按上表顺序发送消息；每轮会显示当前清单。也可以直接调用 `GET /api/tasks` 查看持久化结果。
 
+## 界面演示
+
+以下截图来自本地实际运行的真实 React 界面，使用 E2E Mock 模型以保证可重复、零 API 费用；不是 AI 生成的假界面。
+
+### 主界面
+
+![Todo Agent 主界面](docs/screenshots/01-main.png)
+
+### 核心操作
+
+| 创建 Todo                                    | 查询 Todo                                   |
+| -------------------------------------------- | ------------------------------------------- |
+| ![创建 Todo](docs/screenshots/02-create.png) | ![查询 Todo](docs/screenshots/03-query.png) |
+
+| 完成 Todo                                      | 删除 Todo                                    |
+| ---------------------------------------------- | -------------------------------------------- |
+| ![完成 Todo](docs/screenshots/04-complete.png) | ![删除 Todo](docs/screenshots/05-delete.png) |
+
+[观看演示视频（WebM）](docs/screenshots/demo.webm)
+
+截图和视频生成命令：
+
+```bash
+npm run demo:capture
+```
+
 ## 技术栈
 
 | 类别          | 技术                                                 |
@@ -113,33 +139,40 @@ flowchart LR
 
 ```text
 todo-agent/
-├─ .github/workflows/ci.yml   GitHub Actions 工作流
+├─ .github/workflows/
+│  ├─ ci.yml                   常规 CI（含 Playwright E2E）
+│  └─ deepseek-smoke.yml       手动真实 API Smoke
 ├─ docs/
-│  └─ architecture.md         架构与工具协议说明
+│  ├─ architecture.md          架构与工具协议说明
+│  ├─ product-roadmap.md       产品功能评估
+│  └─ screenshots/             真实界面截图与演示视频
 ├─ e2e/
-│  ├─ mock-model.ts           可控 Mock 模型
-│  ├─ server.ts               E2E 专用服务
-│  └─ todo.spec.ts            Playwright 浏览器测试
-├─ playwright.config.ts       Playwright 配置
-├─ public/                    静态 HTML/CSS/图标
+│  ├─ capture-demo.ts          截图/视频生成脚本
+│  ├─ mock-model.ts            可控 Mock 模型
+│  ├─ server.ts                E2E 专用服务
+│  └─ todo.spec.ts             Playwright 浏览器测试
+├─ smoke/
+│  └─ deepseek.test.ts         手动真实 API Smoke
+├─ playwright.config.ts        Playwright 配置
+├─ public/                     静态 HTML/CSS/图标
 ├─ server/
-│  ├─ index.ts                服务端入口与依赖装配
-│  ├─ app.ts                  Express、聊天接口、任务路由
-│  ├─ agent.ts                Agent 循环、工具、匹配、回复
-│  ├─ model.ts                DeepSeek 客户端与超时
-│  ├─ tasks.ts                任务 REST API
-│  ├─ task-store.ts           JSON 任务存储
-│  ├─ agent.test.ts           Agent 测试
-│  └─ app.test.ts             API/聊天测试
-├─ shared/chat.ts             前后端共享消息 schema
-├─ src/                       React 聊天前端
-├─ .env.example               环境变量占位示例
+│  ├─ index.ts                 服务端入口与依赖装配
+│  ├─ app.ts                   Express、聊天接口、任务路由
+│  ├─ agent.ts                 Agent 循环、工具、匹配、回复
+│  ├─ model.ts                 DeepSeek 客户端与超时
+│  ├─ tasks.ts                 任务 REST API
+│  ├─ task-store.ts            JSON 任务存储
+│  ├─ agent.test.ts            Agent 测试
+│  └─ app.test.ts              API/聊天测试
+├─ shared/chat.ts              前后端共享消息 schema
+├─ src/                        React 聊天前端
+├─ .env.example                环境变量占位示例
 ├─ .gitignore
 ├─ .oxfmtrc.json
 ├─ .oxlintrc.json
-├─ package.json               脚本与依赖
+├─ package.json                脚本与依赖
 ├─ package-lock.json
-├─ tsconfig.json              TypeScript 配置
+├─ tsconfig.json               TypeScript 配置
 ├─ AGENTS.md
 ├─ SUBMIT.md
 ├─ README.md
@@ -265,18 +298,44 @@ npm run test:e2e
 
 - 40 个 Agent 单元测试；
 - 4 个任务/聊天 API 测试；
-- 8 个 Playwright E2E 测试；
-- 共 52 个测试（44 个单元/API + 8 个 E2E），全部通过。
+- 8 个 Playwright E2E 场景；
+- CI 在 Chromium、Firefox、WebKit 上各跑一遍，共 24 次 E2E 执行；
+- 共 68 次自动化执行（44 个单元/API + 24 个 E2E 执行），全部通过。
 
-E2E 首次运行前需要安装 Chromium：
+E2E 首次运行前需要安装浏览器：
 
 ```bash
-npx playwright install chromium
+npx playwright install chromium firefox webkit
+```
+
+默认只运行 Chromium：
+
+```bash
+npm run test:e2e
+```
+
+运行全部浏览器：
+
+```bash
+# macOS / Linux
+E2E_ALL_BROWSERS=1 npm run test:e2e
+
+# Windows PowerShell
+$env:E2E_ALL_BROWSERS='1'; npm run test:e2e
 ```
 
 E2E 使用 `e2e/server.ts`、`e2e/mock-model.ts` 和临时任务数据，不调用真实 DeepSeek API，不产生模型费用。测试覆盖创建、查询、完成、删除、不存在任务、同名歧义、模型异常/超时和无效输入。
 
-测试使用 Mock 模型和临时任务目录，不会消耗真实 DeepSeek 额度。
+### 真实 DeepSeek Smoke
+
+真实 API Smoke 默认不执行，不会进入 `npm test` 或普通 CI。它需要 `DEEPSEEK_API_KEY`，最多发起 2 次模型请求，验证模型确实调用工具并创建任务：
+
+```bash
+# 本地：先在 .env 配置 DEEPSEEK_API_KEY
+npm run test:smoke
+```
+
+GitHub Actions 使用手动 `workflow_dispatch` 工作流 `DeepSeek Smoke`，读取 `Secrets.DEEPSEEK_API_KEY`，不会在 `pull_request` 自动运行。
 
 格式检查：
 
@@ -295,9 +354,12 @@ GitHub Actions 工作流位于 [.github/workflows/ci.yml](.github/workflows/ci.y
 - `npm run typecheck`
 - `npm run lint`
 - `npm run build`
-- 安装 Playwright Chromium 并运行 `npm run test:e2e`
+- 安装 Playwright Chromium、Firefox、WebKit，并在三种浏览器上运行 `npm run test:e2e`
+- 上传 `test-results/` 和 `playwright-report/` artifact（失败时保留 trace、截图、视频，保留 7 天）
 - 项目文件格式检查
 - 全仓 `fmt:check`（非阻塞；`AGENTS.md`、`SUBMIT.md` 的既有格式基线不阻塞 CI）
+
+真实 DeepSeek Smoke 是独立的手动工作流，不在普通 push/PR 中调用真实 API。
 
 依赖安装使用 `setup-node` 的 npm 缓存。
 
@@ -323,20 +385,21 @@ GitHub Actions 工作流位于 [.github/workflows/ci.yml](.github/workflows/ci.y
 - 名称匹配采用完全匹配优先 + 正向子串匹配；单条相似任务可能被直接选中。
 - DeepSeek 客户端有 60 秒超时；超时只返回通用服务错误，没有细分重试策略。
 - JSON 存储适用于单进程本地使用，不支持多进程并发写入。
-- E2E 使用 Mock 模型；真实 DeepSeek 链路仍通过手工六轮验收，不纳入自动测试。
-- 没有真实浏览器界面截图、视频、部署配置或 License 文件。
+- E2E 使用 Mock 模型；真实 DeepSeek 通过独立 Smoke 手动验证，普通 CI 不产生真实 API 费用。
+- 没有部署配置或 License 文件。
 
 ## 后续规划
 
-- 补充界面截图或视频演示（有真实素材后再添加）。
 - 增加更细的错误分类和超时重试策略。
 - 扩展 E2E 场景，覆盖纯聊天和多轮歧义确认。
-- 在明确需求后评估截止日期、优先级、子任务等可选扩展。
+- 按 [产品功能评估](docs/product-roadmap.md) 的结论，优先评估截止日期、优先级、搜索筛选等能力。
 - 评估多进程存储和部署方案；这些是后续工程化事项，不是当前已实现能力。
 
 ## 相关文档
 
 - [本地开发指南](GETTING_STARTED.md)
 - [架构说明](docs/architecture.md)
+- [产品功能评估](docs/product-roadmap.md)
+- [界面截图与演示](docs/screenshots/)
 - [任务 API OpenAPI 定义](server/openapi.yaml)
 - [提交说明模板](SUBMIT.md)

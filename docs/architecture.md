@@ -392,18 +392,19 @@ if (toolCalls + calls.length > MAX_TOOL_CALLS) {
 
 ## 12. 代码与测试索引
 
-| 主题          | 代码                                                          |
-| ------------- | ------------------------------------------------------------- |
-| Agent 主循环  | `server/agent.ts` 的 `createTodoAgent()`                      |
-| 模型调用      | `server/agent.ts` 的 `deepSeekModelCall()`、`server/model.ts` |
-| 工具执行      | `server/agent.ts` 的 `runTool()`                              |
-| 名称匹配      | `server/agent.ts` 的 `findTaskCandidates()`、`parseOrdinal()` |
-| 收尾协议      | `server/agent.ts` 的 `handleRespond()`                        |
-| 最终回复      | `server/agent.ts` 的 `buildReply()`                           |
-| 错误提示      | `server/agent.ts` 的 `modelErrorReply()`                      |
-| 任务存储      | `server/task-store.ts`                                        |
-| 任务 REST API | `server/tasks.ts`                                             |
-| 前后端协议    | `shared/chat.ts`                                              |
-| Agent 测试    | `server/agent.test.ts`（40 个）                               |
-| API 测试      | `server/app.test.ts`（4 个）                                  |
-| E2E 测试      | `e2e/todo.spec.ts`（8 个，Playwright + Mock 模型）            |
+| 主题           | 代码                                                          |
+| -------------- | ------------------------------------------------------------- |
+| Agent 主循环   | `server/agent.ts` 的 `createTodoAgent()`                      |
+| 模型调用       | `server/agent.ts` 的 `deepSeekModelCall()`、`server/model.ts` |
+| 工具执行       | `server/agent.ts` 的 `runTool()`                              |
+| 名称匹配       | `server/agent.ts` 的 `findTaskCandidates()`、`parseOrdinal()` |
+| 收尾协议       | `server/agent.ts` 的 `handleRespond()`                        |
+| 最终回复       | `server/agent.ts` 的 `buildReply()`                           |
+| 错误提示       | `server/agent.ts` 的 `modelErrorReply()`                      |
+| 任务存储       | `server/task-store.ts`                                        |
+| 任务 REST API  | `server/tasks.ts`                                             |
+| 前后端协议     | `shared/chat.ts`                                              |
+| Agent 测试     | `server/agent.test.ts`（40 个）                               |
+| API 测试       | `server/app.test.ts`（4 个）                                  |
+| E2E 场景       | `e2e/todo.spec.ts`（8 个场景 × 3 浏览器 = 24 次执行）         |
+| 真实 API Smoke | `smoke/deepseek.test.ts`（1 个，手动 workflow_dispatch）      |

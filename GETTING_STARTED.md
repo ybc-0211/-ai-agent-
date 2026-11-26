@@ -118,19 +118,66 @@ npm run build
 npm run test:e2e
 ```
 
-E2E 首次运行前安装 Playwright Chromium：
+E2E 首次运行前安装 Playwright 浏览器：
 
 ```bash
-npx playwright install chromium
+npx playwright install chromium firefox webkit
 ```
 
 当前测试情况：
 
 - `server/agent.test.ts`：40 个 Mock Agent 测试；
 - `server/app.test.ts`：4 个任务/聊天 API 测试；
-- `e2e/todo.spec.ts`：8 个 Playwright E2E 测试；
-- 共 52 个测试（44 个单元/API + 8 个 E2E），均不调用真实 DeepSeek API。
+- `e2e/todo.spec.ts`：8 个 Playwright E2E 场景；
+- CI 在 Chromium、Firefox、WebKit 上各跑一遍，共 24 次 E2E 执行；
+- 共 68 次自动化执行（44 个单元/API + 24 个 E2E 执行），均不调用真实 DeepSeek API；
 - E2E 使用 `e2e/server.ts` 和 `e2e/mock-model.ts`，覆盖真实浏览器到任务存储的完整链路。
+
+默认运行 Chromium：
+
+```bash
+npm run test:e2e
+```
+
+运行全部浏览器：
+
+```bash
+# macOS / Linux
+E2E_ALL_BROWSERS=1 npm run test:e2e
+
+# Windows PowerShell
+$env:E2E_ALL_BROWSERS='1'; npm run test:e2e
+```
+
+Playwright 在失败时保留 trace、截图和视频；CI 通过 `actions/upload-artifact` 上传 `test-results/` 和 `playwright-report/`，保留 7 天。
+
+### 真实 DeepSeek Smoke
+
+真实 API Smoke 默认不执行，不进入 `npm test`，普通 CI 也不会调用真实 API。
+
+本地启用：
+
+```bash
+# 确认 .env 中已有 DEEPSEEK_API_KEY
+npm run test:smoke
+```
+
+该 Smoke 最多发起 2 次模型请求，验证真实模型能够完成一次自然语言创建任务并实际落库，不会打印 Key 或请求头。
+
+CI 手动启用：
+
+1. 打开 GitHub 仓库 **Settings → Secrets and variables → Actions**。
+2. 新建 Repository secret：`DEEPSEEK_API_KEY`。
+3. 打开 **Actions → DeepSeek Smoke → Run workflow**。
+4. 该工作流只支持 `workflow_dispatch`，不会在 push/pull_request 自动运行。
+
+生成真实界面截图和演示视频：
+
+```bash
+npm run demo:capture
+```
+
+输出到 `docs/screenshots/`。
 
 格式检查：
 
@@ -144,24 +191,24 @@ npm run fmt:check
 - 不要直接运行 `npm run fmt`，因为它可能修改 `SUBMIT.md`；按照 `AGENTS.md`，该文件不应编辑。
 - 代码质量门禁建议使用 `npm test`、`npm run typecheck`、`npm run lint`、`npm run build`。
 
-GitHub Actions 配置在 `.github/workflows/ci.yml`，在 `push` 和 `pull_request` 时运行上述检查、安装 Playwright Chromium 并执行 E2E；全仓 `fmt:check` 因上述既有文档基线作为非阻塞步骤运行。
+GitHub Actions 配置在 `.github/workflows/ci.yml`，在 `push` 和 `pull_request` 时运行上述检查、安装 Chromium/Firefox/WebKit 并执行 E2E，同时上传 Playwright artifact；全仓 `fmt:check` 因上述既有文档基线作为非阻塞步骤运行。真实 API Smoke 使用独立的 `deepseek-smoke.yml` 手动运行。
 
 ## 7. 常见错误处理
 
-| 现象                                        | 原因                                | 处理                                                 |
-| ------------------------------------------- | ----------------------------------- | ---------------------------------------------------- |
-| 启动时报 TypeScript/语法相关错误            | Node.js 版本过低                    | 升级到 Node.js 24.12+                                |
-| 聊天回复“请在 .env 中设置 DEEPSEEK_API_KEY” | 未配置 Key                          | 创建 `.env` 并填写 Key，重启服务                     |
-| 聊天回复“模型服务暂时不可用”                | Key 无效、网络、超时或模型服务异常  | 检查 Key、网络和 DeepSeek 服务状态                   |
-| 请求长时间无响应                            | 模型客户端 60 秒超时                | 检查网络或模型服务，稍后重试                         |
-| Playwright 报找不到浏览器                   | 未安装 Chromium                     | 执行 `npx playwright install chromium`               |
-| 3000 端口被占用                             | 端口冲突                            | 设置 `PORT` 后重启                                   |
-| 页面能打开但 `/assets/chat.js` 404          | 前端未构建                          | 执行 `npm run build`                                 |
-| 修改前端后页面没有变化                      | 只重启了服务端                      | 重新执行 `npm run build` 并刷新                      |
-| `npm run fmt:check` 失败                    | 仓库既有 Markdown 格式问题          | 不要直接 `npm run fmt`；优先使用 test/typecheck/lint |
-| 首次创建任务时报写入失败                    | 项目目录不可写                      | 确认项目根目录可写，或检查 `data/` 权限              |
-| `git status` 出现 `todo/`                   | 未跟踪的独立仓库/目录，不属于本项目 | 不要提交它                                           |
-| 任务查询为空                                | 尚未创建任务                        | 先通过聊天创建任务，或调用 `POST /api/tasks`         |
+| 现象                                        | 原因                                | 处理                                                  |
+| ------------------------------------------- | ----------------------------------- | ----------------------------------------------------- |
+| 启动时报 TypeScript/语法相关错误            | Node.js 版本过低                    | 升级到 Node.js 24.12+                                 |
+| 聊天回复“请在 .env 中设置 DEEPSEEK_API_KEY” | 未配置 Key                          | 创建 `.env` 并填写 Key，重启服务                      |
+| 聊天回复“模型服务暂时不可用”                | Key 无效、网络、超时或模型服务异常  | 检查 Key、网络和 DeepSeek 服务状态                    |
+| 请求长时间无响应                            | 模型客户端 60 秒超时                | 检查网络或模型服务，稍后重试                          |
+| Playwright 报找不到浏览器                   | 未安装对应浏览器                    | 执行 `npx playwright install chromium firefox webkit` |
+| 3000 端口被占用                             | 端口冲突                            | 设置 `PORT` 后重启                                    |
+| 页面能打开但 `/assets/chat.js` 404          | 前端未构建                          | 执行 `npm run build`                                  |
+| 修改前端后页面没有变化                      | 只重启了服务端                      | 重新执行 `npm run build` 并刷新                       |
+| `npm run fmt:check` 失败                    | 仓库既有 Markdown 格式问题          | 不要直接 `npm run fmt`；优先使用 test/typecheck/lint  |
+| 首次创建任务时报写入失败                    | 项目目录不可写                      | 确认项目根目录可写，或检查 `data/` 权限               |
+| `git status` 出现 `todo/`                   | 未跟踪的独立仓库/目录，不属于本项目 | 不要提交它                                            |
+| 任务查询为空                                | 尚未创建任务                        | 先通过聊天创建任务，或调用 `POST /api/tasks`          |
 
 ## 8. 数据与运行时文件
 

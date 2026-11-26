@@ -13,14 +13,18 @@ p {
   margin: 0;
 }
 button,
-textarea {
+textarea,
+input,
+select {
   font: inherit;
 }
 button {
   cursor: pointer;
 }
 button:focus-visible,
-textarea:focus-visible {
+textarea:focus-visible,
+input:focus-visible,
+select:focus-visible {
   outline: 2px solid #1643e7;
   outline-offset: 3px;
 }
@@ -196,4 +200,209 @@ textarea {
 .error {
   color: #95271e;
   margin: 0 0 8px;
+}
+
+main.workspace {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 390px;
+  overflow: hidden;
+}
+.chat-pane {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+.task-panel {
+  overflow-y: auto;
+  border-left: 1px solid #e3e6ed;
+  background: #fff;
+  padding: 24px 20px 30px;
+}
+.task-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+.task-head h2 {
+  margin: 2px 0 0;
+  font-size: 24px;
+  letter-spacing: -0.03em;
+}
+.eyebrow {
+  margin: 0;
+  color: #64728a;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.13em;
+}
+.task-form {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid #dfe4ee;
+  border-radius: 14px;
+  background: #fafbfe;
+  box-shadow: none;
+}
+.task-form input,
+.task-form select,
+.task-edit input,
+.task-edit select {
+  min-width: 0;
+  border: 1px solid #d5dbe7;
+  border-radius: 8px;
+  padding: 8px 9px;
+  background: #fff;
+  color: inherit;
+}
+.task-form-row,
+.task-edit-row {
+  display: flex;
+  gap: 8px;
+}
+.task-form-row > *,
+.task-edit-row > * {
+  flex: 1;
+}
+.task-form .primary,
+.task-edit button {
+  border: 0;
+  border-radius: 8px;
+  padding: 8px 12px;
+  background: #103ae1;
+  color: #fff;
+}
+.task-form .primary {
+  width: 100%;
+}
+.task-filters {
+  display: flex;
+  gap: 8px;
+  margin: 18px 0 12px;
+}
+.task-filters select {
+  flex: 1;
+  min-width: 0;
+  border: 1px solid #d5dbe7;
+  border-radius: 8px;
+  padding: 7px 8px;
+  background: #fff;
+  color: #42506a;
+  font-size: 12px;
+}
+.task-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.task-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  padding: 10px;
+  border: 1px solid #e4e8f0;
+  border-radius: 10px;
+  background: #fff;
+}
+.task-row > input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  margin-top: 3px;
+  accent-color: #103ae1;
+  flex: 0 0 auto;
+}
+.task-main {
+  min-width: 0;
+  flex: 1;
+}
+.task-title {
+  display: block;
+  overflow-wrap: anywhere;
+  font-size: 14px;
+  font-weight: 600;
+}
+.task-title.done {
+  color: #7b8699;
+  text-decoration: line-through;
+}
+.task-main small {
+  display: block;
+  margin-top: 4px;
+  color: #748198;
+  font-size: 11px;
+}
+.task-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 4px 8px;
+  max-width: 92px;
+}
+.link {
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: #3452b3;
+  font-size: 12px;
+}
+.link.danger {
+  color: #a13a31;
+}
+.task-edit {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 7px;
+}
+.task-edit-row {
+  flex-wrap: wrap;
+}
+.task-edit-row > input,
+.task-edit-row > select {
+  flex: 1 1 110px;
+}
+.task-edit button {
+  flex: 0 0 auto;
+  font-size: 12px;
+}
+.task-edit button.secondary {
+  background: #eef1f7;
+  color: #42506a;
+}
+.task-error {
+  margin: 0 0 12px;
+  color: #95271e;
+  font-size: 12px;
+}
+.task-empty {
+  color: #748198;
+  font-size: 13px;
+  padding: 12px 2px;
+}
+
+@media (max-width: 900px) {
+  main.workspace {
+    grid-template-columns: 1fr;
+    grid-template-rows: minmax(0, 1fr) minmax(240px, 42vh);
+  }
+  .task-panel {
+    border-left: 0;
+    border-top: 1px solid #e3e6ed;
+    padding: 16px;
+  }
+  .task-head {
+    margin-bottom: 10px;
+  }
+  .task-form {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+  .task-form .primary {
+    width: auto;
+  }
 }

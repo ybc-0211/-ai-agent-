@@ -6,7 +6,7 @@
 
 ```mermaid
 flowchart LR
-  B[React Chat UI] -->|POST /api/chat| API[Express /api/chat]
+  B[React Chat UI + Task Panel] -->|POST /api/chat| API[Express /api/chat]
   API -->|reply(messages)| Agent[Todo Agent]
   Agent -->|Chat Completions + tools| DeepSeek[DeepSeek API]
   DeepSeek -->|tool_calls / content| Agent
@@ -38,6 +38,8 @@ Agent 和 REST API 共用 `server/index.ts` 中创建的同一个 `TaskStore` �
 | `server/task-store.ts`               | JSON 文件存储                                         |
 | `shared/chat.ts`                     | 聊天消息类型与请求 schema                             |
 | `src/App.tsx` / `src/chat-client.ts` | 前端聊天与请求封装                                    |
+| `src/TaskPanel.tsx`                  | 任务面板：优先级、截止日期、子任务、筛选、编辑        |
+| `src/tasks-client.ts`                | 前端任务 REST API 客户端                              |
 
 ## 2. 用户请求处理流程
 
@@ -147,13 +149,13 @@ assistant → respond 或最终文本
 
 工具定义位于 `agent.ts` 的 `TOOLS`。
 
-| 工具            | 参数                      | 作用                              |
-| --------------- | ------------------------- | --------------------------------- |
-| `list_tasks`    | 无                        | 返回任务标题和完成状态，不返回 id |
-| `create_task`   | `title`                   | 创建任务                          |
-| `complete_task` | `name`，可选 `occurrence` | 按名称完成                        |
-| `delete_task`   | `name`，可选 `occurrence` | 按名称删除                        |
-| `respond`       | `claimed_action`          | 结构化收尾                        |
+| 工具            | 参数                                | 作用                                            |
+| --------------- | ----------------------------------- | ----------------------------------------------- |
+| `list_tasks`    | 可选 `status`、`priority`           | 返回任务标题、状态、优先级、截止日期，不返回 id |
+| `create_task`   | `title`，可选 `priority`、`dueDate` | 创建任务，默认中优先级                          |
+| `complete_task` | `name`，可选 `occurrence`           | 按名称完成                                      |
+| `delete_task`   | `name`，可选 `occurrence`           | 按名称删除；父任务会级联删除子任务              |
+| `respond`       | `claimed_action`                    | 结构化收尾                                      |
 
 ### 4.1 模型如何决定调用
 
@@ -168,7 +170,14 @@ assistant → respond 或最终文本
 
 ```json
 {
-  "tasks": [{ "title": "买牛奶", "done": false }]
+  "tasks": [
+    {
+      "title": "买牛奶",
+      "done": false,
+      "priority": "medium",
+      "dueDate": "2026-12-01"
+    }
+  ]
 }
 ```
 
@@ -192,15 +201,16 @@ tool_call
 
 ### 5.1 `list_tasks`
 
-- 调用 `tasks.list()`；
-- 将结果映射为 `{ title, done }`；
+- 解析可选 `status` 和 `priority`；
+- 调用 `tasks.list()` 并按条件过滤；
+- 将结果映射为 `{ title, done, priority, dueDate, parentId }`；
 - 设置 `state.hasListed = true`；
 - 返回成功报告。查询本身不会被当作数据修改。
 
 ### 5.2 `create_task`
 
-- 复用 `server/tasks.ts` 的 `createTaskSchema` 校验标题（trim、1–200 字符）；
-- 调用 `tasks.create(title)`；
+- 复用 `server/tasks.ts` 的 `createTaskSchema` 校验标题、优先级和截止日期；
+- 调用 `tasks.create(title, { priority, dueDate })`；
 - 再次 `tasks.list()`，确认新 id 存在；
 - 只有确认成功才记录成功报告。
 
@@ -371,23 +381,35 @@ if (toolCalls + calls.length > MAX_TOOL_CALLS) {
 
 这些接口使用 `TaskStore`，与 Agent 共用同一实例。`server/openapi.yaml` 是 REST API 的契约文档。
 
+任务数据模型：
+
+```text
+Task = {
+  id, title, done,
+  priority?: "low" | "medium" | "high",
+  dueDate?: "YYYY-MM-DD" | null,
+  parentId?: string
+}
+```
+
+`priority` 缺失时按 `medium` 处理；`parentId` 表示扁平子任务关系，删除父任务会级联删除子任务。
+
 差异：
 
-- REST API 对外暴露任务 id；
+- REST API 对外暴露任务 id，支持优先级、截止日期、子任务、编辑、完成/重新打开和筛选；
 - Agent 工具不向模型暴露 id，由服务端按名称解析；
 - Agent 额外提供 `respond` 和“先查询再修改”等约束；
-- REST API 支持修改标题（PATCH），Agent 当前只暴露四个核心操作。
+- Web 任务面板直接调用 REST API，聊天仍通过 `/api/chat`。
 
 ## 11. 当前实现边界
 
 以下能力目前**没有**实现，文档不应表述为已支持：
 
-- 截止日期、子任务、优先级/工作量；
+- 截止日期具体时刻、提醒和通知；
 - 流式响应；
 - 多用户、登录、鉴权、速率限制；
 - 数据库/多进程并发存储；
 - 撤销删除、操作历史；
-- CI 和浏览器自动化测试；
 - License 文件。
 
 ## 12. 代码与测试索引
@@ -404,7 +426,7 @@ if (toolCalls + calls.length > MAX_TOOL_CALLS) {
 | 任务存储       | `server/task-store.ts`                                        |
 | 任务 REST API  | `server/tasks.ts`                                             |
 | 前后端协议     | `shared/chat.ts`                                              |
-| Agent 测试     | `server/agent.test.ts`（41 个）                               |
-| API 测试       | `server/app.test.ts`（4 个）                                  |
-| E2E 场景       | `e2e/todo.spec.ts`（8 个场景 × 3 浏览器 = 24 次执行）         |
+| Agent 测试     | `server/agent.test.ts`（42 个）                               |
+| API 测试       | `server/app.test.ts`（7 个）                                  |
+| E2E 场景       | `e2e/todo.spec.ts`（11 个场景 × 3 浏览器 = 33 次执行）        |
 | 真实 API Smoke | `smoke/deepseek.test.ts`（1 个；无 Key 时 skip，手动运行）    |

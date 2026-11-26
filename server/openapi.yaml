@@ -1,14 +1,24 @@
 openapi: 3.1.0
 info:
-  title: 小明智能体任务 API
-  version: 1.0.0
+  title: Todo Agent 任务 API
+  version: 1.1.0
 servers:
   - url: http://127.0.0.1:3000
 paths:
   /api/tasks:
     get:
       operationId: listTasks
-      summary: 按创建顺序列出全部任务，包括已完成任务
+      summary: 列出任务，可按状态或优先级筛选
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [all, open, completed]
+            default: all
+        - name: priority
+          in: query
+          schema: { $ref: "#/components/schemas/Priority" }
       responses:
         "200":
           description: 任务列表；空列表为 []
@@ -19,7 +29,7 @@ paths:
                 items: { $ref: "#/components/schemas/Task" }
     post:
       operationId: createTask
-      summary: 创建一条未完成任务
+      summary: 创建任务，可设置优先级、截止日期和父任务
       requestBody:
         required: true
         content:
@@ -30,6 +40,11 @@ paths:
               required: [title]
               properties:
                 title: { $ref: "#/components/schemas/Title" }
+                priority: { $ref: "#/components/schemas/Priority" }
+                dueDate: { $ref: "#/components/schemas/DueDate" }
+                parentId:
+                  type: string
+                  description: 可选；父任务 id
       responses:
         "201":
           description: 新建的任务
@@ -45,7 +60,7 @@ paths:
         schema: { type: string }
     patch:
       operationId: updateTask
-      summary: 修改标题或完成状态
+      summary: 编辑标题、完成状态、优先级、截止日期或父任务
       requestBody:
         required: true
         content:
@@ -57,6 +72,12 @@ paths:
               properties:
                 title: { $ref: "#/components/schemas/Title" }
                 done: { type: boolean }
+                priority: { $ref: "#/components/schemas/Priority" }
+                dueDate:
+                  oneOf:
+                    - { $ref: "#/components/schemas/DueDate" }
+                    - { type: "null" }
+                parentId: { type: string }
       responses:
         "200":
           description: 更新后的任务
@@ -67,7 +88,7 @@ paths:
         "404": { $ref: "#/components/responses/NotFound" }
     delete:
       operationId: deleteTask
-      summary: 删除一条任务
+      summary: 删除任务；父任务会级联删除子任务
       responses:
         "204":
           description: 删除成功，响应体为空
@@ -79,6 +100,14 @@ components:
       description: 首尾空白会自动去除，去除后长度应为 1 至 200
       minLength: 1
       maxLength: 200
+    Priority:
+      type: string
+      enum: [low, medium, high]
+      default: medium
+    DueDate:
+      type: string
+      description: 截止日期，格式 YYYY-MM-DD
+      pattern: '^\d{4}-\d{2}-\d{2}$'
     Task:
       type: object
       required: [id, title, done]
@@ -86,6 +115,14 @@ components:
         id: { type: string, format: uuid }
         title: { $ref: "#/components/schemas/Title" }
         done: { type: boolean }
+        priority: { $ref: "#/components/schemas/Priority" }
+        dueDate:
+          oneOf:
+            - { $ref: "#/components/schemas/DueDate" }
+            - { type: "null" }
+        parentId:
+          type: string
+          description: 父任务 id；空表示顶层任务
     Error:
       type: object
       required: [error]

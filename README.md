@@ -30,10 +30,16 @@ Todo Agent 是一个可本地运行的中文 AI 待办清单智能体。用户�
 
 | 功能              | 说明                                                       |
 | ----------------- | ---------------------------------------------------------- |
-| 创建任务          | 从中文对话中提取任务标题并创建待办                         |
+| 创建任务          | 从中文对话或任务面板创建待办                               |
 | 查询任务          | 列出全部任务及完成状态                                     |
 | 标记完成          | 按用户所说的任务名称匹配真实任务并标记完成                 |
-| 删除任务          | 按名称匹配真实任务并永久删除                               |
+| 重新打开          | 已完成任务可以重新打开                                     |
+| 编辑任务          | 编辑标题、优先级和截止日期                                 |
+| 删除任务          | 按名称匹配真实任务并永久删除；父任务级联删除子任务         |
+| 优先级            | 高、中、低三档，默认中优先级                               |
+| 截止日期          | 设置、修改和展示 `YYYY-MM-DD` 截止日期                     |
+| 子任务            | 新增、完成、删除；支持多层父子关系                         |
+| 筛选              | 全部、待完成、已完成，以及按优先级筛选                     |
 | 同名/相似任务处理 | 多个候选时返回歧义，要求用户确认；支持用户明确指定“第几条” |
 | 先查询再修改      | 完成或删除前必须先调用任务查询工具                         |
 | 真实结果校验      | 成功回复只来自服务端对真实工具执行结果的确认               |
@@ -54,7 +60,7 @@ Todo Agent 是一个可本地运行的中文 AI 待办清单智能体。用户�
 | 取快递这条删掉吧 | 实际删除「取快递」                     |
 | 再给我看看清单   | 只剩已完成的「买牛奶」                 |
 
-任务数据在服务重启后仍然存在。当前没有内置截图或视频演示，以上内容来自实际对话记录。
+任务数据在服务重启后仍然存在。以下截图来自实际运行的项目。
 
 复现方式：启动服务后按上表顺序发送消息；每轮会显示当前清单。也可以直接调用 `GET /api/tasks` 查看持久化结果。
 
@@ -65,6 +71,10 @@ Todo Agent 是一个可本地运行的中文 AI 待办清单智能体。用户�
 ### 主界面
 
 ![Todo Agent 主界面](docs/screenshots/01-main.png)
+
+### 任务管理面板
+
+![任务管理面板：优先级、截止日期和子任务](docs/screenshots/06-task-panel.png)
 
 ### 核心操作
 
@@ -132,6 +142,8 @@ flowchart LR
 | [server/task-store.ts](server/task-store.ts) | JSON 任务存储与原子写入                         |
 | [shared/chat.ts](shared/chat.ts)             | 前后端共享的消息类型与请求 schema               |
 | [src/App.tsx](src/App.tsx)                   | 聊天界面、发送逻辑                              |
+| [src/TaskPanel.tsx](src/TaskPanel.tsx)       | 任务列表、过滤、编辑、子任务和状态操作          |
+| [src/tasks-client.ts](src/tasks-client.ts)   | 前端任务 API 客户端                             |
 
 更详细的架构说明见 [docs/architecture.md](docs/architecture.md)。
 
@@ -141,7 +153,10 @@ flowchart LR
 todo-agent/
 ├─ .github/workflows/
 │  ├─ ci.yml                   常规 CI（含 Playwright E2E）
-│  └─ deepseek-smoke.yml       手动真实 API Smoke
+│  ├─ deepseek-smoke.yml       手动真实 API Smoke
+│  └─ artifact-validation.yml  手动 artifact 上传验证
+├─ artifact-check/
+│  └─ artifact.spec.ts         受控失败测试（仅手动验证）
 ├─ docs/
 │  ├─ architecture.md          架构与工具协议说明
 │  ├─ product-roadmap.md       产品功能评估
@@ -154,6 +169,7 @@ todo-agent/
 ├─ smoke/
 │  └─ deepseek.test.ts         手动真实 API Smoke
 ├─ playwright.config.ts        Playwright 配置
+├─ playwright.artifact.config.ts  artifact 验证配置
 ├─ public/                     静态 HTML/CSS/图标
 ├─ server/
 │  ├─ index.ts                 服务端入口与依赖装配
@@ -296,11 +312,11 @@ npm run test:e2e
 
 当前测试规模：
 
-- 41 个 Agent 单元测试；
-- 4 个任务/聊天 API 测试；
-- 8 个 Playwright E2E 场景；
-- CI 在 Chromium、Firefox、WebKit 上各跑一遍，共 24 次 E2E 执行；
-- 共 69 次自动化执行（45 个单元/API + 24 个 E2E 执行），全部通过。
+- 42 个 Agent 单元测试；
+- 7 个任务/聊天 API 测试；
+- 11 个 Playwright E2E 场景；
+- CI 在 Chromium、Firefox、WebKit 上各跑一遍，共 33 次 E2E 执行；
+- 共 82 次自动化执行（49 个单元/API + 33 个 E2E 执行），全部通过。
 
 E2E 首次运行前需要安装浏览器：
 
@@ -324,7 +340,12 @@ E2E_ALL_BROWSERS=1 npm run test:e2e
 $env:E2E_ALL_BROWSERS='1'; npm run test:e2e
 ```
 
-E2E 使用 `e2e/server.ts`、`e2e/mock-model.ts` 和临时任务数据，不调用真实 DeepSeek API，不产生模型费用。测试覆盖创建、查询、完成、删除、不存在任务、同名歧义、模型异常/超时和无效输入。
+E2E 使用 `e2e/server.ts`、`e2e/mock-model.ts` 和临时任务数据，不调用真实 DeepSeek API，不产生模型费用。测试覆盖聊天四项核心功能、任务面板创建/编辑/完成/重新打开/删除、优先级、截止日期、子任务、筛选、刷新持久化、同名歧义、模型异常/超时和无效输入。
+
+### Mock 与真实 API 的区别
+
+- Mock 模式：E2E 使用可控模型，验证浏览器、HTTP、Agent 协议和 TaskStore 链路，不产生费用。
+- 真实 API 模式：只通过独立手动 Smoke 验证真实 DeepSeek 工具调用，最多 2 次请求、256 输出 tokens；普通 CI 不调用真实 API。
 
 ### 真实 DeepSeek Smoke
 
@@ -346,7 +367,7 @@ npm run test:smoke
 npm run fmt:check
 ```
 
-当前仓库中的 `AGENTS.md`、`SUBMIT.md` 等既有文档可能存在格式问题，`fmt:check` 可能失败。本次修改的三份文档已通过 oxfmt 检查。不要直接运行 `npm run fmt`，因为它可能修改 `SUBMIT.md`，而该文件按项目约定不应编辑。
+全仓 Markdown、TypeScript、JSON 和 YAML 均已通过 oxfmt 检查；`AGENTS.md` 与 `SUBMIT.md` 的格式问题已修复并保留原内容。CI 中 `fmt:check` 是阻塞步骤。
 
 ## 持续集成
 
@@ -359,8 +380,8 @@ GitHub Actions 工作流位于 [.github/workflows/ci.yml](.github/workflows/ci.y
 - `npm run build`
 - 安装 Playwright Chromium、Firefox、WebKit，并在三种浏览器上运行 `npm run test:e2e`
 - 上传 `test-results/` 和 `playwright-report/` artifact（失败时保留 trace、截图、视频，保留 7 天）
-- 项目文件格式检查
-- 全仓 `fmt:check`（非阻塞；`AGENTS.md`、`SUBMIT.md` 的既有格式基线不阻塞 CI）
+- 全仓 `fmt:check`（阻塞）
+- 独立手动 `artifact-validation.yml`：通过受控失败测试验证 trace、截图、视频和 artifact 上传
 
 真实 DeepSeek Smoke 是独立的手动工作流，不在普通 push/PR 中调用真实 API。
 
@@ -382,7 +403,8 @@ GitHub Actions 工作流位于 [.github/workflows/ci.yml](.github/workflows/ci.y
 ## 当前限制
 
 - 模型可能偶发不调用任务工具，直接返回聊天回复。服务端会阻止虚报成功，并尝试要求它补调工具；但该次操作仍可能不会执行。
-- 没有实现截止日期、子任务、优先级或工作量。
+- 截止日期是日期级，不含具体时刻和提醒通知。
+- 子任务通过上级任务 id 关联；父任务删除时会级联删除子任务。
 - 没有流式回复、多用户、登录鉴权、数据库、撤销删除或操作历史。
 - 纯聊天没有模型自由对话：无工具结果时返回固定安全文案。
 - 名称匹配采用完全匹配优先 + 正向子串匹配；单条相似任务可能被直接选中。
@@ -393,10 +415,10 @@ GitHub Actions 工作流位于 [.github/workflows/ci.yml](.github/workflows/ci.y
 
 ## 后续规划
 
-- 增加更细的错误分类和超时重试策略。
-- 扩展 E2E 场景，覆盖纯聊天和多轮歧义确认。
-- 按 [产品功能评估](docs/product-roadmap.md) 的结论，优先评估截止日期、优先级、搜索筛选等能力。
-- 评估多进程存储和部署方案；这些是后续工程化事项，不是当前已实现能力。
+- 增加日期时间、提醒和逾期通知能力。
+- 扩展 E2E 场景，覆盖更多筛选组合和移动端布局。
+- 评估多进程存储和公网部署方案。
+- 增加真实 DeepSeek API 的可选回归 Smoke 和更细的错误恢复策略。
 
 ## 相关文档
 

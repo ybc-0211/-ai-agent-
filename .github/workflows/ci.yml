@@ -65,8 +65,5 @@ jobs:
       - name: Format check (project files)
         run: npx oxfmt --check server shared src e2e README.md GETTING_STARTED.md docs/architecture.md playwright.config.ts
 
-      # AGENTS.md and SUBMIT.md are protected files with a pre-existing
-      # formatting baseline. Run the full check but do not block CI on them.
-      - name: Format check (full repository, informational)
+      - name: Format check (full repository)
         run: npm run fmt:check
-        continue-on-error: true

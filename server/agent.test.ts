@@ -105,6 +105,30 @@ test("创建任务：收到真实创建结果并生成确定性确认", async (t
   );
 });
 
+test("创建任务：支持优先级和截止日期", async (t) => {
+  const tasks = await createStore(t);
+  const { answer } = await replyWith(
+    tasks,
+    [
+      assistantMessage(null, [
+        toolCall("create_task", {
+          title: "写报告",
+          priority: "high",
+          dueDate: "2026-12-01",
+        }),
+      ]),
+      respondMessage("create"),
+    ],
+    "记一下高优先级报告，截止 12 月 1 日",
+  );
+
+  assert.match(answer, /已创建任务「写报告」/);
+  assert.match(answer, /高优先级/);
+  assert.match(answer, /截止 2026-12-01/);
+  assert.equal(tasks.list()[0]?.priority, "high");
+  assert.equal(tasks.list()[0]?.dueDate, "2026-12-01");
+});
+
 test("查询任务：返回真实清单且不产生修改", async (t) => {
   const tasks = await createStore(t);
   const milk = tasks.create("买牛奶");

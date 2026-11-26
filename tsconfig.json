@@ -14,5 +14,14 @@
     "erasableSyntaxOnly": true,
     "skipLibCheck": true
   },
-  "include": ["src", "server", "shared", "e2e", "smoke", "playwright.config.ts"]
+  "include": [
+    "src",
+    "server",
+    "shared",
+    "e2e",
+    "smoke",
+    "artifact-check",
+    "playwright.config.ts",
+    "playwright.artifact.config.ts"
+  ]
 }

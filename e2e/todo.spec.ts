@@ -4,6 +4,9 @@ interface Task {
   id: string;
   title: string;
   done: boolean;
+  priority?: "low" | "medium" | "high";
+  dueDate?: string | null;
+  parentId?: string;
 }
 
 async function listTasks(request: APIRequestContext): Promise<Task[]> {
@@ -121,4 +124,92 @@ test("E2E API 无效输入与不存在任务", async ({ request }) => {
 
   const invalidChat = await request.post("/api/chat", { data: { messages: [] } });
   expect(invalidChat.status()).toBe(400);
+});
+
+test("E2E 任务面板：创建优先级、截止日期并刷新持久化", async ({ page, request }) => {
+  await openChat(page);
+  await page.getByLabel("任务标题", { exact: true }).fill("写报告");
+  await page.getByLabel("任务优先级", { exact: true }).selectOption("high");
+  await page.getByLabel("截止日期", { exact: true }).fill("2026-12-01");
+  await page.getByRole("button", { name: "添加任务", exact: true }).click();
+
+  await expect(page.getByTestId(/^task-row-/).filter({ hasText: "写报告" })).toBeVisible();
+  let tasks = await listTasks(request);
+  expect(tasks[0]).toMatchObject({
+    title: "写报告",
+    priority: "high",
+    dueDate: "2026-12-01",
+    done: false,
+  });
+
+  await page.reload();
+  await expect(page.getByTestId(/^task-row-/).filter({ hasText: "写报告" })).toBeVisible();
+  tasks = await listTasks(request);
+  expect(tasks[0]?.title).toBe("写报告");
+});
+
+test("E2E 任务面板：完成、重新打开和状态/优先级筛选", async ({ page, request }) => {
+  const high = await seedTask(request, "高优先级任务");
+  await request.patch(`/api/tasks/${high.id}`, { data: { priority: "high" } });
+  const low = await seedTask(request, "低优先级任务");
+  await request.patch(`/api/tasks/${low.id}`, { data: { priority: "low" } });
+  const completed = await seedTask(request, "已完成任务");
+  await request.patch(`/api/tasks/${completed.id}`, { data: { done: true } });
+
+  await openChat(page);
+  await page.getByLabel("状态筛选", { exact: true }).selectOption("open");
+  await expect(page.getByTestId(`task-row-${high.id}`)).toBeVisible();
+  await expect(page.getByTestId(`task-row-${completed.id}`)).toHaveCount(0);
+
+  await page.getByLabel("优先级筛选", { exact: true }).selectOption("high");
+  await expect(page.getByTestId(`task-row-${high.id}`)).toBeVisible();
+  await expect(page.getByTestId(`task-row-${low.id}`)).toHaveCount(0);
+
+  await page.getByLabel("优先级筛选", { exact: true }).selectOption("all");
+  await page.getByLabel(`完成任务「高优先级任务」`, { exact: true }).click();
+  await page.getByLabel("状态筛选", { exact: true }).selectOption("completed");
+  await expect(page.getByLabel(`重新打开任务「高优先级任务」`, { exact: true })).toBeVisible();
+  expect((await listTasks(request)).find((task) => task.id === high.id)?.done).toBe(true);
+
+  await page.getByLabel(`重新打开任务「高优先级任务」`, { exact: true }).click();
+  await page.getByLabel("状态筛选", { exact: true }).selectOption("all");
+  await expect(page.getByLabel(`完成任务「高优先级任务」`, { exact: true })).toBeVisible();
+  expect((await listTasks(request)).find((task) => task.id === high.id)?.done).toBe(false);
+});
+
+test("E2E 任务面板：编辑任务和子任务新增/删除", async ({ page, request }) => {
+  const parent = await seedTask(request, "准备面试");
+  await openChat(page);
+
+  const parentRow = page.getByTestId(`task-row-${parent.id}`);
+  await parentRow.getByRole("button", { name: "编辑", exact: true }).click();
+  await page.getByLabel("编辑任务标题", { exact: true }).fill("准备技术面试");
+  await page.getByLabel("编辑任务优先级", { exact: true }).selectOption("high");
+  await page.getByLabel("编辑截止日期", { exact: true }).fill("2026-12-15");
+  await page.getByRole("button", { name: "保存", exact: true }).click();
+
+  await expect(page.getByTestId(`task-row-${parent.id}`)).toContainText("准备技术面试");
+  let tasks = await listTasks(request);
+  expect(tasks[0]).toMatchObject({
+    title: "准备技术面试",
+    priority: "high",
+    dueDate: "2026-12-15",
+  });
+
+  await page.getByTestId(`task-row-${parent.id}`).getByRole("button", { name: "子任务" }).click();
+  await page.getByLabel("任务标题", { exact: true }).fill("复习算法");
+  await page.getByRole("button", { name: "添加任务", exact: true }).click();
+
+  await expect(page.getByTestId(/^task-row-/).filter({ hasText: "复习算法" })).toBeVisible();
+  tasks = await listTasks(request);
+  const child = tasks.find((task) => task.title === "复习算法");
+  expect(child?.parentId).toBe(parent.id);
+
+  await page.getByLabel(`完成任务「复习算法」`, { exact: true }).click();
+  await expect(page.getByLabel(`重新打开任务「复习算法」`, { exact: true })).toBeVisible();
+  expect((await listTasks(request)).find((task) => task.title === "复习算法")?.done).toBe(true);
+
+  await page.getByLabel(`删除任务「复习算法」`, { exact: true }).click();
+  await expect(page.getByTestId(/^task-row-/).filter({ hasText: "复习算法" })).toHaveCount(0);
+  expect((await listTasks(request)).some((task) => task.title === "复习算法")).toBe(false);
 });

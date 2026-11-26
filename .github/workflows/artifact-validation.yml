@@ -1,0 +1,50 @@
+name: Playwright Artifact Validation
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate-artifact-upload:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Run controlled failing test
+        run: npx playwright test --config=playwright.artifact.config.ts
+        continue-on-error: true
+
+      - name: Verify artifacts were generated
+        run: |
+          test -f playwright-report-artifact/index.html
+          test -n "$(find test-results-artifact -name 'trace.zip' -print -quit)"
+          test -n "$(find test-results-artifact -name '*.png' -print -quit)"
+          test -n "$(find test-results-artifact -name '*.webm' -print -quit)"
+
+      - name: Upload Playwright artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-artifact-validation
+          path: |
+            test-results-artifact/
+            playwright-report-artifact/
+          retention-days: 7
+          if-no-files-found: error

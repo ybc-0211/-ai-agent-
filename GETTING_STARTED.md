@@ -108,6 +108,18 @@ npm start
 
 `npm start` 不会自动构建前端。若页面无法加载 `/assets/chat.js`，先执行 `npm run build`。
 
+## 任务面板
+
+页面右侧是任务管理面板，与聊天共用同一个 REST API 和 TaskStore：
+
+- 创建任务时可设置标题、优先级（高/中/低）、截止日期和父任务；
+- 复选框用于完成/重新打开；
+- “编辑”可修改标题、优先级和截止日期；
+- “子任务”会把新任务创建为当前任务的子任务；
+- 删除父任务会级联删除子任务；
+- 状态筛选支持全部/待完成/已完成，优先级筛选支持全部/高/中/低；
+- 刷新页面后任务仍从 `data/tasks.json` 恢复。
+
 ## 6. 测试与检查
 
 ```bash
@@ -126,11 +138,11 @@ npx playwright install chromium firefox webkit
 
 当前测试情况：
 
-- `server/agent.test.ts`：41 个 Mock Agent 测试；
-- `server/app.test.ts`：4 个任务/聊天 API 测试；
-- `e2e/todo.spec.ts`：8 个 Playwright E2E 场景；
-- CI 在 Chromium、Firefox、WebKit 上各跑一遍，共 24 次 E2E 执行；
-- 共 69 次自动化执行（45 个单元/API + 24 个 E2E 执行），均不调用真实 DeepSeek API；
+- `server/agent.test.ts`：42 个 Mock Agent 测试；
+- `server/app.test.ts`：7 个任务/聊天 API 测试；
+- `e2e/todo.spec.ts`：11 个 Playwright E2E 场景；
+- CI 在 Chromium、Firefox、WebKit 上各跑一遍，共 33 次 E2E 执行；
+- 共 82 次自动化执行（49 个单元/API + 33 个 E2E 执行），均不调用真实 DeepSeek API；
 - E2E 使用 `e2e/server.ts` 和 `e2e/mock-model.ts`，覆盖真实浏览器到任务存储的完整链路。
 
 默认运行 Chromium：
@@ -187,11 +199,11 @@ npm run fmt:check
 
 说明：
 
-- 当前仓库中的 `AGENTS.md`、`SUBMIT.md` 等既有文档可能存在格式问题，`fmt:check` 可能失败；本次修改的三份文档已通过 oxfmt 检查。
-- 不要直接运行 `npm run fmt`，因为它可能修改 `SUBMIT.md`；按照 `AGENTS.md`，该文件不应编辑。
-- 代码质量门禁建议使用 `npm test`、`npm run typecheck`、`npm run lint`、`npm run build`。
+- `AGENTS.md`、`SUBMIT.md` 的格式问题已修复，全仓 `fmt:check` 通过。
+- 不要随意运行 `npm run fmt`；它可能改动无关文件。
+- 代码质量门禁使用 `npm test`、`npm run typecheck`、`npm run lint`、`npm run build`。
 
-GitHub Actions 配置在 `.github/workflows/ci.yml`，在 `push` 和 `pull_request` 时运行上述检查、安装 Chromium/Firefox/WebKit 并执行 E2E，同时上传 Playwright artifact；全仓 `fmt:check` 因上述既有文档基线作为非阻塞步骤运行。真实 API Smoke 使用独立的 `deepseek-smoke.yml` 手动运行。
+GitHub Actions 配置在 `.github/workflows/ci.yml`，在 `push` 和 `pull_request` 时运行上述检查、安装 Chromium/Firefox/WebKit 并执行 E2E，同时上传 Playwright artifact；全仓 `fmt:check` 是阻塞步骤。真实 API Smoke 使用独立的 `deepseek-smoke.yml` 手动运行；artifact 上传机制使用独立的 `artifact-validation.yml` 手动验证。
 
 ## 7. 常见错误处理
 
@@ -205,7 +217,7 @@ GitHub Actions 配置在 `.github/workflows/ci.yml`，在 `push` 和 `pull_reque
 | 3000 端口被占用                             | 端口冲突                            | 设置 `PORT` 后重启                                    |
 | 页面能打开但 `/assets/chat.js` 404          | 前端未构建                          | 执行 `npm run build`                                  |
 | 修改前端后页面没有变化                      | 只重启了服务端                      | 重新执行 `npm run build` 并刷新                       |
-| `npm run fmt:check` 失败                    | 仓库既有 Markdown 格式问题          | 不要直接 `npm run fmt`；优先使用 test/typecheck/lint  |
+| `npm run fmt:check` 失败                    | 代码或文档格式不符合 oxfmt          | 运行 `npm run fmt:check` 定位；只修复授权文件         |
 | 首次创建任务时报写入失败                    | 项目目录不可写                      | 确认项目根目录可写，或检查 `data/` 权限               |
 | `git status` 出现 `todo/`                   | 未跟踪的独立仓库/目录，不属于本项目 | 不要提交它                                            |
 | 任务查询为空                                | 尚未创建任务                        | 先通过聊天创建任务，或调用 `POST /api/tasks`          |

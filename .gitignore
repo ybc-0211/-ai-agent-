@@ -9,3 +9,5 @@ deepseek.txt
 test-results/
 playwright-report/
 blob-report/
+test-results-artifact/
+playwright-report-artifact/

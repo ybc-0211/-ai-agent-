@@ -65,6 +65,24 @@ async function main(): Promise<void> {
     await page.getByLabel("消息", { exact: true }).waitFor();
     await page.screenshot({ path: join(screenshotsDir, "01-main.png"), fullPage: true });
 
+    await page.getByLabel("任务标题", { exact: true }).fill("准备项目演示");
+    await page.getByLabel("任务优先级", { exact: true }).selectOption("high");
+    await page.getByLabel("截止日期", { exact: true }).fill("2026-12-01");
+    await page.getByRole("button", { name: "添加任务", exact: true }).click();
+    await page
+      .getByTestId(/^task-row-/)
+      .filter({ hasText: "准备项目演示" })
+      .waitFor();
+    await page
+      .getByTestId(/^task-row-/)
+      .filter({ hasText: "准备项目演示" })
+      .getByRole("button", { name: "子任务", exact: true })
+      .click();
+    await page.getByLabel("任务标题", { exact: true }).fill("整理演示脚本");
+    await page.getByRole("button", { name: "添加任务", exact: true }).click();
+    await page.getByText("整理演示脚本", { exact: true }).waitFor();
+    await page.screenshot({ path: join(screenshotsDir, "06-task-panel.png"), fullPage: true });
+
     await send(page, "帮我记一下买牛奶", "已创建任务「买牛奶」");
     await page.screenshot({ path: join(screenshotsDir, "02-create.png"), fullPage: true });
 

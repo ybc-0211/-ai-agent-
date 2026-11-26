@@ -51,7 +51,7 @@ test("任务 API 可以创建、列出、修改和删除任务", async (t) => {
   assert.equal(created.status, 201);
   const task = created.body;
   assert.equal(typeof task.id, "string");
-  assert.deepEqual(task, { id: task.id, title: "买牛奶", done: false });
+  assert.deepEqual(task, { id: task.id, title: "买牛奶", done: false, priority: "medium" });
 
   const item = collection + "/" + task.id;
   const completed = await request("PATCH", item, { done: true });
@@ -74,12 +74,88 @@ test("任务 API 拒绝无效输入并区分不存在的任务", async (t) => {
 
 test("更新已有 JSON 清单时保留其他任务和扩展字段", async (t) => {
   const { request, filename } = await startTestApp(t);
-  const first = { id: "a", title: "买牛奶", done: false, priority: 1 };
+  const first = { id: "a", title: "买牛奶", done: false, custom: 1 };
   const second = { id: "b", title: "取快递", done: false };
   await writeFile(filename, JSON.stringify([first, second]));
 
   assert.equal((await request("PATCH", "/api/tasks/a", { done: true })).status, 200);
   assert.deepEqual(createJsonTaskStore(filename).list(), [{ ...first, done: true }, second]);
+});
+
+test("任务 API 支持优先级、截止日期、筛选和重新打开", async (t) => {
+  const { request } = await startTestApp(t);
+  const created = await request("POST", "/api/tasks", {
+    title: "写报告",
+    priority: "high",
+    dueDate: "2026-12-01",
+  });
+  assert.equal(created.status, 201);
+  assert.deepEqual(created.body, {
+    id: created.body.id,
+    title: "写报告",
+    done: false,
+    priority: "high",
+    dueDate: "2026-12-01",
+  });
+
+  const low = await request("POST", "/api/tasks", { title: "倒垃圾", priority: "low" });
+  assert.equal(low.status, 201);
+  const highOpen = await request("GET", "/api/tasks?status=open&priority=high");
+  assert.deepEqual(highOpen.body, [created.body]);
+
+  const completed = await request("PATCH", `/api/tasks/${created.body.id}`, { done: true });
+  assert.equal(completed.status, 200);
+  assert.equal(completed.body.done, true);
+  assert.deepEqual((await request("GET", "/api/tasks?status=completed")).body, [completed.body]);
+
+  const reopened = await request("PATCH", `/api/tasks/${created.body.id}`, { done: false });
+  assert.equal(reopened.status, 200);
+  assert.equal(reopened.body.done, false);
+
+  const edited = await request("PATCH", `/api/tasks/${created.body.id}`, {
+    title: "写季度报告",
+    priority: "low",
+    dueDate: null,
+  });
+  assert.equal(edited.status, 200);
+  assert.equal(edited.body.title, "写季度报告");
+  assert.equal(edited.body.priority, "low");
+  assert.equal(edited.body.dueDate, null);
+});
+
+test("任务 API 支持子任务并级联删除", async (t) => {
+  const { request } = await startTestApp(t);
+  const parent = await request("POST", "/api/tasks", { title: "准备面试" });
+  const child = await request("POST", "/api/tasks", {
+    title: "复习算法",
+    parentId: parent.body.id,
+    priority: "high",
+  });
+  assert.equal(child.status, 201);
+  assert.equal(child.body.parentId, parent.body.id);
+
+  assert.equal((await request("GET", "/api/tasks")).body.length, 2);
+  assert.deepEqual(await request("DELETE", `/api/tasks/${parent.body.id}`), {
+    status: 204,
+    body: null,
+  });
+  assert.deepEqual((await request("GET", "/api/tasks")).body, []);
+});
+
+test("任务 API 拒绝无效优先级、截止日期和父任务", async (t) => {
+  const { request } = await startTestApp(t);
+  assert.equal(
+    (await request("POST", "/api/tasks", { title: "无效", priority: "urgent" })).status,
+    400,
+  );
+  assert.equal(
+    (await request("POST", "/api/tasks", { title: "无效", dueDate: "2026-02-30" })).status,
+    400,
+  );
+  assert.equal(
+    (await request("POST", "/api/tasks", { title: "无效", parentId: "missing" })).status,
+    400,
+  );
 });
 
 test("聊天 API 只将有效的完整对话传给智能体，并返回其回复", async (t) => {

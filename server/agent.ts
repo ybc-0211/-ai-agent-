@@ -8,7 +8,7 @@ import type {
 import { z } from "zod";
 import type { ChatMessage } from "../shared/chat.ts";
 import { getModelClient, model } from "./model.ts";
-import type { TaskStore } from "./task-store.ts";
+import type { Task, TaskStore } from "./task-store.ts";
 import { createTaskSchema } from "./tasks.ts";
 
 export type { ChatMessage } from "../shared/chat.ts";
@@ -45,19 +45,44 @@ const TOOLS: ChatCompletionTool[] = [
     function: {
       name: "list_tasks",
       description:
-        "列出当前所有任务及完成状态（只返回标题和完成状态，不返回 id）。查询清单，或在修改、删除任务前必须调用。",
-      parameters: { type: "object", properties: {}, additionalProperties: false },
+        "列出当前任务及完成状态、优先级、截止日期（只返回标题和状态，不返回 id）。可按 status 或 priority 筛选。查询清单，或在修改、删除任务前必须调用。",
+      parameters: {
+        type: "object",
+        properties: {
+          status: {
+            type: "string",
+            enum: ["all", "open", "completed"],
+            description: "可选；默认 all",
+          },
+          priority: {
+            type: "string",
+            enum: ["low", "medium", "high"],
+            description: "可选；按优先级筛选",
+          },
+        },
+        additionalProperties: false,
+      },
     },
   },
   {
     type: "function",
     function: {
       name: "create_task",
-      description: "创建一条新的待办任务。title 是提炼后的任务标题，1 至 200 个字符。",
+      description:
+        "创建一条新的待办任务。title 是提炼后的任务标题，1 至 200 个字符。可以设置 priority 和 dueDate。",
       parameters: {
         type: "object",
         properties: {
           title: { type: "string", description: "任务标题，1 至 200 个字符" },
+          priority: {
+            type: "string",
+            enum: ["low", "medium", "high"],
+            description: "可选；优先级，默认 medium",
+          },
+          dueDate: {
+            type: "string",
+            description: "可选；截止日期，格式 YYYY-MM-DD",
+          },
         },
         required: ["title"],
         additionalProperties: false,
@@ -133,6 +158,11 @@ const taskNameSchema = z.strictObject({
   occurrence: z.number().int().min(1).optional(),
 });
 
+const listTaskQuery = z.strictObject({
+  status: z.enum(["all", "open", "completed"]).optional(),
+  priority: z.enum(["low", "medium", "high"]).optional(),
+});
+
 const respondSchema = z.strictObject({
   claimed_action: z.enum(["none", "create", "complete", "delete", "query"]),
 });
@@ -144,6 +174,9 @@ const RESPOND_REMINDER =
 interface PublicTask {
   title: string;
   done: boolean;
+  priority?: "low" | "medium" | "high";
+  dueDate?: string | null;
+  parentId?: string;
 }
 
 interface TaskView extends PublicTask {
@@ -382,11 +415,20 @@ function runTool(
 
   switch (call.function.name) {
     case "list_tasks": {
+      const parsed = listTaskQuery.safeParse(args);
+      if (!parsed.success) {
+        return failure("list", "invalid_json", "任务筛选参数不合法。");
+      }
       try {
-        const list = tasks.list().map(toView);
+        let list = tasks.list();
+        if (parsed.data.status === "open") list = list.filter((task) => !task.done);
+        if (parsed.data.status === "completed") list = list.filter((task) => task.done);
+        if (parsed.data.priority) {
+          list = list.filter((task) => (task.priority ?? "medium") === parsed.data.priority);
+        }
         state.hasListed = true;
         return {
-          content: okJson({ tasks: list.map(toPublic) }),
+          content: okJson({ tasks: list.map(toView).map(toPublic) }),
           report: { action: "list", ok: true },
         };
       } catch (error) {
@@ -401,7 +443,10 @@ function runTool(
         return failure("create", "invalid_title", "任务标题需要是 1 到 200 个字符。");
       }
       try {
-        const created = tasks.create(parsed.data.title);
+        const created = tasks.create(parsed.data.title, {
+          priority: parsed.data.priority,
+          dueDate: parsed.data.dueDate,
+        });
         const confirmed = tasks.list().find((task) => task.id === created.id);
         if (!confirmed) {
           return failure("create", "store_error", "任务创建后未能确认，请稍后重试。");
@@ -668,7 +713,7 @@ function buildReply(reports: ToolReport[], tasks: TaskStore, note?: string): str
         lines.push("（空）");
       } else {
         for (const task of list) {
-          lines.push(`- [${task.done ? "x" : " "}] ${task.title}`);
+          lines.push(`- [${task.done ? "x" : " "}] ${task.title}${taskMeta(task)}`);
         }
       }
     } catch (error) {
@@ -685,12 +730,33 @@ function buildReply(reports: ToolReport[], tasks: TaskStore, note?: string): str
   return lines.join("\n").trim() || "操作未执行。";
 }
 
-function toView(task: { id: string; title: string; done: boolean }): TaskView {
-  return { id: task.id, title: task.title, done: task.done };
+function taskMeta(task: Task): string {
+  const labels = { low: "低", medium: "中", high: "高" } as const;
+  const parts = [`${labels[task.priority ?? "medium"]}优先级`];
+  if (task.dueDate) parts.push(`截止 ${task.dueDate}`);
+  if (task.parentId) parts.push("子任务");
+  return `（${parts.join("，")}）`;
+}
+
+function toView(task: Task): TaskView {
+  return {
+    id: task.id,
+    title: task.title,
+    done: task.done,
+    priority: task.priority,
+    dueDate: task.dueDate,
+    parentId: task.parentId,
+  };
 }
 
 function toPublic(task: PublicTask): PublicTask {
-  return { title: task.title, done: task.done };
+  return {
+    title: task.title,
+    done: task.done,
+    ...(task.priority ? { priority: task.priority } : {}),
+    ...(task.dueDate ? { dueDate: task.dueDate } : {}),
+    ...(task.parentId ? { parentId: task.parentId } : {}),
+  };
 }
 
 function okJson(payload: Record<string, unknown>): string {

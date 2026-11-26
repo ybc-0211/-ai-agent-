@@ -1,68 +1,169 @@
-# 本地开发指南
+# Todo Agent 本地开发指南
 
-## 启动
+本指南覆盖从安装、配置到启动、测试的完整流程。所有命令均以项目根目录为工作目录。
 
-安装 Node.js 24.12 或更高版本（含 npm）。在终端执行以下命令。
+## 1. 环境要求
 
-```sh
-git clone https://github.com/TokeNow/todo-agent.git
-cd todo-agent
+| 项目             | 要求                                      |
+| ---------------- | ----------------------------------------- |
+| Node.js          | **24.12 或更高版本**                      |
+| npm              | 随 Node.js 安装                           |
+| 操作系统         | Windows、macOS 或 Linux                   |
+| DeepSeek API Key | 真实对话需要；任务 API 和自动化测试不需要 |
+
+检查版本：
+
+```bash
+node --version
+npm --version
+```
+
+Node.js 24 可以直接运行本项目中的 `.ts` 文件，不需要安装 `ts-node` 或 `tsx`。
+
+## 2. 获取项目
+
+```bash
+git clone https://github.com/ybc-0211/-ai-agent-.git
+cd -ai-agent-
+```
+
+如果本地已经存在项目目录，直接进入项目根目录即可。
+
+## 3. 安装依赖
+
+```bash
 npm ci
+```
+
+`npm ci` 会依据 `package-lock.json` 安装锁定版本。通常不需要手动执行 `npm install`。
+
+## 4. 配置 DeepSeek API Key
+
+### 4.1 创建 `.env`
+
+macOS / Linux：
+
+```bash
+cp .env.example .env
+```
+
+Windows PowerShell：
+
+```powershell
+Copy-Item .env.example .env
+```
+
+也可以手动复制 `.env.example` 并重命名为 `.env`。
+
+### 4.2 填写配置
+
+```env
+DEEPSEEK_API_KEY=your_deepseek_api_key
+DEEPSEEK_MODEL=deepseek-flash
+```
+
+| 变量               | 是否必需         | 说明                          |
+| ------------------ | ---------------- | ----------------------------- |
+| `DEEPSEEK_API_KEY` | 真实模型调用必需 | 不要提交到 Git，不要写入前端  |
+| `DEEPSEEK_MODEL`   | 可选             | 默认 `deepseek-flash`         |
+| `PORT`             | 可选             | 默认 3000，只监听 `127.0.0.1` |
+
+注意：
+
+- 本文档中的 `your_deepseek_api_key` 是占位符，不是真实 Key。
+- `.env` 已被 `.gitignore` 忽略；仓库中只保留 `.env.example`。
+- 不要将真实 Key 粘贴到 README、Issue、日志或截图中。
+- 没有 Key 时，任务 API 和 `npm test` 仍然可用；真实聊天会返回配置提示。
+
+## 5. 启动开发服务
+
+```bash
 npm run dev
 ```
 
-浏览器打开 <http://127.0.0.1:3000>。前后端共用这个地址，修改服务端代码后服务会自动重启。修改聊天界面的 TSX 后，在另一个终端运行 `npm run build` 并刷新页面。若 3000 端口已占用，可以用 `PORT=3001 npm run dev` 指定其他端口（macOS / Linux）。
+该命令会：
 
-## 接入 DeepSeek
+1. 通过 `predev` 执行 `npm run build`，生成 `dist/chat.js`；
+2. 执行 `node --watch --env-file-if-exists=.env server/index.ts`；
+3. 在 <http://127.0.0.1:3000> 提供页面和 API。
 
-1. 在项目根目录将 `.env.example` 复制为 `.env`。
-2. 在 `.env` 中填写 [DeepSeek 开放平台](https://platform.deepseek.com/) 的 API Key。可通过 `DEEPSEEK_MODEL` 更换模型。
-3. 重启开发服务。在服务端使用 [server/model.ts](server/model.ts) 导出的 `getModelClient()` 获取客户端，使用 `model` 读取配置的模型名称。只有发起模型请求才会产生调用费用。
+修改服务端 `.ts` 文件后，watch 会自动重启。修改 `src/` 下的前端 TSX 后，需要重新运行 `npm run build` 并刷新页面。
 
-## 代码入口
+### 5.1 指定端口
 
-| 文件                                         | 用途                                       |
-| -------------------------------------------- | ------------------------------------------ |
-| [src/App.tsx](src/App.tsx)                   | 聊天界面，发送当前页面的对话历史并显示回复 |
-| [server/index.ts](server/index.ts)           | 接入智能体与任务存储，启动服务             |
-| [server/agent.ts](server/agent.ts)           | 候选人实现入口，接收消息数组，返回回复文本 |
-| [server/model.ts](server/model.ts)           | 服务端 DeepSeek 客户端与模型配置           |
-| [server/tasks.ts](server/tasks.ts)           | 任务 API 的输入校验和 HTTP 响应            |
-| [server/app.ts](server/app.ts)               | 接收对话历史，调用智能体并挂载任务 API     |
-| [server/task-store.ts](server/task-store.ts) | 读写本地 JSON 任务清单                     |
-| [server/openapi.yaml](server/openapi.yaml)   | 任务请求和响应的完整定义                   |
+```bash
+# macOS / Linux
+PORT=3001 npm run dev
 
-## 手动验证接口
-
-启动服务后，在另一个终端发送聊天消息。
-
-```sh
-curl -sS http://127.0.0.1:3000/api/chat \
-  -H 'Content-Type: application/json' \
-  -d '{"messages":[{"role":"user","content":"你好"}]}'
+# Windows PowerShell
+$env:PORT=3001; npm run dev
 ```
 
-初始响应为 `{"reply":"你好，欢迎使用小明智能体"}`。后续请求可在 `messages` 中按顺序传入之前的用户消息和小明的回复，再追加最新的用户消息。
+### 5.2 生产式启动
 
-创建一条任务，然后检查列表。
-
-```sh
-curl -sS http://127.0.0.1:3000/api/tasks \
-  -H 'Content-Type: application/json' \
-  -d '{"title":"买牛奶"}'
-curl -sS http://127.0.0.1:3000/api/tasks
+```bash
+npm run build
+npm start
 ```
 
-首次创建任务时，服务会在项目根目录创建 `data/tasks.json`。这些任务会保留到下次启动，浏览器中的聊天记录则会在刷新后清空。
+`npm start` 不会自动构建前端。若页面无法加载 `/assets/chat.js`，先执行 `npm run build`。
 
-## 本地检查
+## 6. 测试与检查
 
-```sh
+```bash
 npm test
 npm run typecheck
 npm run lint
-npm run fmt:check
 npm run build
 ```
 
-测试使用独立的临时目录。要预览构建产物，先停止开发服务，再运行 `npm start` 并打开同一地址。
+当前测试情况：
+
+- `server/agent.test.ts`：40 个 Mock Agent 测试；
+- `server/app.test.ts`：4 个任务/聊天 API 测试；
+- 共 44 个测试，均不调用真实 DeepSeek API。
+
+格式检查：
+
+```bash
+npm run fmt:check
+```
+
+说明：
+
+- 当前仓库中的 `AGENTS.md`、`SUBMIT.md` 等既有文档可能存在格式问题，`fmt:check` 可能失败；本次修改的三份文档已通过 oxfmt 检查。
+- 不要直接运行 `npm run fmt`，因为它可能修改 `SUBMIT.md`；按照 `AGENTS.md`，该文件不应编辑。
+- 代码质量门禁建议使用 `npm test`、`npm run typecheck`、`npm run lint`、`npm run build`。
+
+## 7. 常见错误处理
+
+| 现象                                        | 原因                                | 处理                                                 |
+| ------------------------------------------- | ----------------------------------- | ---------------------------------------------------- |
+| 启动时报 TypeScript/语法相关错误            | Node.js 版本过低                    | 升级到 Node.js 24.12+                                |
+| 聊天回复“请在 .env 中设置 DEEPSEEK_API_KEY” | 未配置 Key                          | 创建 `.env` 并填写 Key，重启服务                     |
+| 聊天回复“模型服务暂时不可用”                | Key 无效、网络、超时或模型服务异常  | 检查 Key、网络和 DeepSeek 服务状态                   |
+| 请求长时间无响应                            | 模型客户端 60 秒超时                | 检查网络或模型服务，稍后重试                         |
+| 3000 端口被占用                             | 端口冲突                            | 设置 `PORT` 后重启                                   |
+| 页面能打开但 `/assets/chat.js` 404          | 前端未构建                          | 执行 `npm run build`                                 |
+| 修改前端后页面没有变化                      | 只重启了服务端                      | 重新执行 `npm run build` 并刷新                      |
+| `npm run fmt:check` 失败                    | 仓库既有 Markdown 格式问题          | 不要直接 `npm run fmt`；优先使用 test/typecheck/lint |
+| 首次创建任务时报写入失败                    | 项目目录不可写                      | 确认项目根目录可写，或检查 `data/` 权限              |
+| `git status` 出现 `todo/`                   | 未跟踪的独立仓库/目录，不属于本项目 | 不要提交它                                           |
+| 任务查询为空                                | 尚未创建任务                        | 先通过聊天创建任务，或调用 `POST /api/tasks`         |
+
+## 8. 数据与运行时文件
+
+| 路径              | 说明                                            |
+| ----------------- | ----------------------------------------------- |
+| `data/tasks.json` | 首次创建任务时生成，保存全部任务；已被 Git 忽略 |
+| `dist/chat.js`    | esbuild 生成的前端 bundle；已被 Git 忽略        |
+| `.env`            | 本地 API Key 配置；已被 Git 忽略                |
+| `node_modules/`   | 依赖目录；已被 Git 忽略                         |
+
+浏览器中的聊天记录不会持久化；刷新页面会重新开始对话。任务数据会持久化到 `data/tasks.json`。
+
+## 9. 相关文档
+
+- [README](../README.md)
+- [架构说明](architecture.md)
+- [任务 API OpenAPI 定义](../server/openapi.yaml)
